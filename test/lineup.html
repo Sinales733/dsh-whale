@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>鲸尾大小对比</title>
+<style>
+  html,body{margin:0;background:#151517;color:#e6e8ec;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+  body{padding:12px 14px;box-sizing:border-box}
+  .bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;font-size:12px;color:#8a8f98}
+  .bar button{font:inherit;color:#c9ccd3;background:#24252a;border:1px solid #2f3036;border-radius:6px;padding:3px 10px;cursor:pointer}
+  .bar button.on{background:#1d2a52;border-color:#3a4f94;color:#dfe6ff}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .card{background:#1a1b1f;border:1px solid #24252a;border-radius:10px;padding:8px 8px 10px;display:flex;flex-direction:column;align-items:center}
+  .name{font-size:12.5px;color:#d6d9df;align-self:flex-start}
+  .stage{position:relative;width:132px;height:132px}
+  .stage .ic{position:absolute;left:50%;top:50%;width:76px;height:76px;margin:-38px 0 0 -38px;color:#7d93f2}
+  .stage .water{position:absolute;left:4px;right:4px;border-top:1px dashed #3a3d46}
+  .running{color:#7d93f2;font-size:12px;line-height:22px;display:flex;align-items:center;gap:6px}
+  .small{width:14px;height:14px;position:relative;display:inline-block;flex:none}
+  .dshm-whale{position:absolute;inset:0;pointer-events:none}
+  .dshm-cv{position:absolute;left:-35.7143%;top:-35.7143%;width:171.4286%;height:171.4286%}
+</style>
+</head>
+<body>
+<div class="bar" id="speed">速度
+  <button data-s="1" class="on">正常</button><button data-s="0.5">½ 慢放</button><button data-s="0">暂停</button>
+  <button id="line" class="on">水面虚线</button>
+</div>
+<div class="grid" id="grid"></div>
+<script>window.__ModuleLoader__ = { load({ factory }) { window.__plugin = factory(() => ({})); } };</script>
+<script src="../lib/client.js"></script>
+<script>
+  // All six loops side by side, each pinned, at the same scale: big copy + the real 14px icon.
+  const P = window.__plugin;
+  const NAMES = [['original', '原版摆尾'], ['spin', '旋转'], ['sway', '转身'], ['stroke', '划水'], ['fluke', '举尾下潜'], ['spout', '浮头喷水']];
+  const grid = document.getElementById('grid');
+  const live = [];
+  for (const [n, label] of NAMES) {
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `<div class="name">${label}</div><div class="stage"><div class="water"></div><div class="ic"></div></div><div class="running"><span class="small"></span><span>Deep diving for 13s</span></div>`;
+    grid.appendChild(card);
+    const w = P.createWhale(n);
+    card.querySelector('.ic').appendChild(w.el);
+    // the waterline: 13.742 of the icon's 16 units
+    card.querySelector('.water').style.top = `calc(50% - 38px + ${(13.742 / 16) * 76}px)`;
+    const small = document.createElement('canvas'); small.className = 'dshm-cv'; small.width = small.height = 48;
+    const sw = document.createElement('span'); sw.className = 'dshm-whale'; sw.appendChild(small);
+    card.querySelector('.small').appendChild(sw);
+    live.push({ w, small });
+  }
+  let speed = 1, T = 0, last = performance.now();
+  document.getElementById('speed').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'line') { b.classList.toggle('on'); for (const x of document.querySelectorAll('.water')) x.hidden = !b.classList.contains('on'); return; }
+    speed = Number(b.dataset.s);
+    for (const x of document.querySelectorAll('#speed button[data-s]')) x.classList.toggle('on', x === b);
+  });
+  const imgs = Object.values(P.whaleImages()).flat();
+  const ready = (im) => (im.getContext ? new Promise((r) => { const chk = () => (im.ready ? r() : setTimeout(chk, 20)); chk(); }) : im.complete ? 1 : new Promise((r) => { im.onload = im.onerror = r; }));
+  Promise.all(imgs.map(ready)).then(() => {
+    const loop = (now) => {
+      T += (Math.max(0, now - last) / 1000) * speed; last = now;
+      for (const { w, small } of live) {
+        w.render(100 + T);
+        const sc = small.getContext('2d'); sc.clearRect(0, 0, 48, 48); sc.drawImage(w.el.querySelector('canvas'), 0, 0);
+      }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  });
+</script>
+</body>
+</html>

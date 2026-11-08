@@ -42,11 +42,11 @@ function nbTrack(keys, t) {
 }
 
 /** the emoji's blow at blowhole (x, y), starting at t0. o.scale = viewBox units per emoji pixel,
- *  o.lean = shear with height (wind), o.clipY / o.hole = what hides the water (default: below the blowhole) */
-function sfNotoBlow(fr, t, t0, x, y, o = {}) {
+ *  o.lean = shear with height (wind), o.clipY / o.hole = what hides the water (see sfDraw's fills) */
+function sfNotoBlow(fr, t, t0, x, y, o) {
   const tau = 16 + (t - t0) * NOTO_BLOW.fps;     // clock of the column comp; the burst/drops comp runs +24
-  if (t < t0 || tau > 92) return;
-  const S = o.scale || 0.03, lean = o.lean || 0;
+  if (t < t0 || tau > 92 || !sfFx(fr, t0)) return;
+  const S = o.scale, lean = o.lean;
   const [ax, ay] = NOTO_BLOW.anchor;
   for (const sh of NOTO_BLOW.shapes) {
     const lt = sh.comp === 1 ? tau : tau + 24;
@@ -64,6 +64,6 @@ function sfNotoBlow(fr, t, t0, x, y, o = {}) {
       const a = k.v[m - 1], b = k.v[m % n], ao = k.o[m - 1], bi = k.i[m % n];
       d += `C${P(a[0] + ao[0], a[1] + ao[1])} ${P(b[0] + bi[0], b[1] + bi[1])} ${P(b[0], b[1])}`;
     }
-    fr.fills.push({ d: d + 'Z', a: 1, clipY: o.clipY != null ? o.clipY : y, hole: o.hole || null });
+    fr.fills.push({ d: d + 'Z', clipY: o.clipY, hole: o.hole });
   }
 }

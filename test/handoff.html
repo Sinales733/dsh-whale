@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>交接检查</title>
+<style>
+  body{margin:0;background:#151517;color:#ccc;font:11px monospace;padding:8px}
+  #sheet{image-rendering:pixelated}
+  pre{margin:4px 0}
+</style>
+</head>
+<body>
+<pre id="report">running…</pre>
+<canvas id="sheet"></canvas>
+<script>window.__ModuleLoader__ = { load({ factory }) { window.__plugin = factory(() => ({})); } };</script>
+<script src="../lib/client.js"></script>
+<script>
+// Plays the real whale (lib/client.js) in a fixed order on a synthetic clock and checks every hand-off:
+// the change between two frames at a cut should be no bigger than the motion around it.
+// ?order=original,sway,fluke,…  &fps=60  &sheet=from-to (seconds) &cols=  &z= (zoom)
+const Q = new URLSearchParams(location.search);
+const order = (Q.get('order') || 'original,sway,stroke,spin,fluke,spin,spout,sway,original,stroke,fluke,spout,spin,original').split(',');
+const fps = Number(Q.get('fps') || 60);
+const P = window.__plugin;
+const host = document.createElement('span');
+host.style.cssText = 'position:relative;display:inline-block;width:14px;height:14px;color:#7d93f2';
+document.body.appendChild(host);
+const whale = P.createWhale(null, false, order);
+host.appendChild(whale.el);
+const cv = whale.el.querySelector('canvas');
+const imgs = P.whaleImages();
+const all = Object.values(imgs).flat();
+const ready = (im) => (im.getContext ? new Promise((r) => { const chk = () => (im.ready ? r() : setTimeout(chk, 20)); chk(); }) : im.complete ? 1 : new Promise((r) => { im.onload = im.onerror = r; }));
+Promise.all(all.map(ready)).then(run);
+
+function run() {
+  const g = cv.getContext('2d');
+  let prev = null, prevClip = null, prevStart = null;
+  const steps = [], cuts = [];
+  const total = Number(Q.get('total') || 60);
+  const keep = Q.get('sheet') ? Q.get('sheet').split('-').map(Number) : null;
+  const shots = [];
+  for (let i = 0; i <= total * fps; i++) {
+    const t = 10 + i / fps;                                     // start the clock away from 0
+    whale.render(t);
+    const st = whale.state();
+    const d = g.getImageData(0, 0, cv.width, cv.height).data;
+    const a = new Float32Array(d.length / 4);
+    for (let j = 0; j < a.length; j++) a[j] = d[j * 4 + 3] / 255;
+    if (prev) {
+      let s = 0; for (let j = 0; j < a.length; j++) s += Math.abs(a[j] - prev[j]);
+      steps.push({ i, t: i / fps, d: s / a.length, clip: st.clip });
+      if (st.clip !== prevClip || st.clipStart !== prevStart) cuts.push(steps.length - 1);
+    }
+    if (keep && i / fps >= keep[0] && i / fps <= keep[1]) shots.push({ t: i / fps, clip: st.clip, img: g.getImageData(0, 0, cv.width, cv.height) });
+    prev = a; prevClip = st.clip; prevStart = st.clipStart;
+  }
+  // every cut: the change across it vs. the largest change in the frames around it
+  const lines = [];
+  let worst = 0;
+  for (const c of cuts) {
+    const around = steps.slice(Math.max(0, c - 6), c).concat(steps.slice(c + 1, c + 7)).map((x) => x.d);
+    const ref = Math.max(...around, 1e-4);
+    const ratio = steps[c].d / ref;
+    worst = Math.max(worst, ratio);
+    lines.push(`${steps[c].t.toFixed(2).padStart(6)}s  ${(steps[c - 1] ? steps[c - 1].clip : '').padEnd(22)} → ${steps[c].clip.padEnd(22)} jump ${steps[c].d.toFixed(4)}  neighbours max ${ref.toFixed(4)}  ratio ${ratio.toFixed(2)}`);
+  }
+  document.getElementById('report').textContent = `order: ${order.join(' → ')}\n` + lines.join('\n') + `\nworst ratio ${worst.toFixed(2)}`;
+  if (shots.length) {
+    const z = Number(Q.get('z') || 4), cols = Number(Q.get('cols') || 12), W = cv.width * z;
+    const sheet = document.getElementById('sheet');
+    sheet.width = cols * W; sheet.height = Math.ceil(shots.length / cols) * (W + 12);
+    const x = sheet.getContext('2d');
+    x.fillStyle = '#0d0d10'; x.fillRect(0, 0, sheet.width, sheet.height);
+    x.imageSmoothingEnabled = false;
+    const tmp = document.createElement('canvas'); tmp.width = cv.width; tmp.height = cv.height;
+    shots.forEach((s, n) => {
+      tmp.getContext('2d').putImageData(s.img, 0, 0);
+      const X = (n % cols) * W, Y = Math.floor(n / cols) * (W + 12);
+      x.drawImage(tmp, X, Y + 12, W, W);
+      x.fillStyle = '#ff0'; x.font = '10px monospace'; x.fillText(`${s.t.toFixed(2)} ${s.clip}`, X + 2, Y + 10);
+    });
+  }
+  window.__report = { cuts: lines, worst };
+}
+</script>
+</body>
+</html>

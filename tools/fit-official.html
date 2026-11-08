@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>fit official frames</title></head>
+<body style="background:#151517;color:#ccc;font:12px monospace">
+<pre id="out">fitting…</pre>
+<script src="../src/official-frames.js"></script>
+<script src="../src/orig-frames.js"></script>
+<script src="../src/rig-model.js"></script>
+<script src="../src/surface.js"></script>
+<script>
+// Dev tool: fits the 3D tail rig (surface.js) to frames of the official loops, so transition frames can
+// turn the resting icon into an official loop's first frame (and back out of its last one).
+// ?frames=spin:37,38,39 sway:27,28 stroke:6,7   → window.__fit = { name: { frame: { p, err } } }
+const K = 1.75, PAD = 40 / 7, OFF = PAD * K;            // the plugin's canvas: the 28 px box at (10, 10)
+const KEYS = ['yaw', 'pitch', 'rollB', 'rollT', 'twist', 'flexP', 'dihed', 'curl', 'asym', 'tx', 'ty', 'sx', 'sy', 'ang'];
+const STEP = { yaw: 0.25, pitch: 0.2, rollB: 0.12, rollT: 0.15, twist: 0.2, flexP: 0.2, dihed: 0.2, curl: 0.2, asym: 0.15, tx: 0.6, ty: 0.6, sx: 0.08, sy: 0.08, ang: 0.12 };
+const cv = document.createElement('canvas'); cv.width = cv.height = 48;
+const g = cv.getContext('2d', { willReadFrequently: true });
+function render(p) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 48, 48);
+  g.setTransform(K, 0, 0, K, OFF, OFF);
+  g.save(); g.beginPath(); g.rect(-20, -20, 56, 20 + SF_WATER); g.clip();
+  g.lineWidth = 1; g.lineJoin = g.lineCap = 'round'; g.strokeStyle = '#000';
+  g.stroke(new Path2D(sfPath(sfProject(p)))); g.restore();
+  const d = g.getImageData(10, 10, 28, 28).data, a = new Float32Array(784);
+  for (let i = 0; i < 784; i++) a[i] = d[i * 4 + 3] / 255;
+  return a;
+}
+const load = (src) => new Promise((r) => { const im = new Image(); im.onload = () => r(im); im.src = src; });
+async function target(src) {
+  const im = await load(src);
+  const c = document.createElement('canvas'); c.width = c.height = 28;
+  const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, 28, 28).data, a = new Float32Array(784);
+  for (let i = 0; i < 784; i++) { const v = d[i * 4 + 3] / 255; a[i] = 1 - (1 - v) * (1 - v); }   // drawn twice at runtime
+  return a;
+}
+const err = (a, b) => { let s = 0; for (let i = 0; i < 784; i++) s += Math.abs(a[i] - b[i]); return s / 784; };
+// pull the fit toward the resting pose (?reg=…), so the transition from rest stays short and natural
+const REG = Number(new URLSearchParams(location.search).get('reg') || 0);
+const REST = sfRestPose();
+const reg = (p) => { let s = 0; for (const k of KEYS) { const d = (p[k] - REST[k]) / STEP[k]; s += d * d; } return REG * s; };
+function fit(tgt, start) {
+  let best = Object.assign(sfRestPose(), start || {});
+  let bestE = err(render(best), tgt) + reg(best);
+  const step = Object.fromEntries(KEYS.map((k) => [k, STEP[k]]));
+  for (let round = 0; round < 40; round++) {
+    let improved = false;
+    for (const k of KEYS) {
+      for (const s of [1, -1]) {
+        const p = Object.assign({}, best); p[k] += s * step[k];
+        const e = err(render(p), tgt) + reg(p);
+        if (e < bestE - 1e-6) { best = p; bestE = e; improved = true; break; }
+      }
+    }
+    if (!improved) { let small = true; for (const k of KEYS) { step[k] *= 0.6; if (step[k] > STEP[k] * 0.01) small = false; } if (small) break; }
+  }
+  return { p: best, e: bestE };
+}
+// ?track=spin:39-60 → follow the turning angle frame by frame (each fit starts from the previous one turned a
+// little further), so the yaw comes out unwrapped: window.__track = [{ f, yaw, e }]
+async function track(name, a, b) {
+  const S = OFFICIAL[name], out = [];
+  let prev = null;
+  for (let f = a; f <= b; f++) {
+    const tgt = await target(S.frames[S.seq[f % S.seq.length]]);
+    let best = null;
+    const starts = prev ? [-0.45, -0.3, -0.15, 0, 0.15].map((d) => Object.assign({}, prev, { yaw: prev.yaw + d })) : [{}];
+    for (const s of starts) { const r = fit(tgt, s); if (!best || r.e < best.e) best = r; }
+    prev = best.p;
+    out.push({ f, yaw: Math.round(best.p.yaw * 1000) / 1000, twist: Math.round(best.p.twist * 1000) / 1000, e: Math.round(best.e * 1000) / 1000 });
+  }
+  return out;
+}
+(async () => {
+  const Q = new URLSearchParams(location.search);
+  if (Q.get('track')) {
+    const [name, range] = Q.get('track').split(':');
+    const [a, b] = range.split('-').map(Number);
+    window.__track = await track(name, a, b);
+    return;
+  }
+  const spec = (Q.get('frames') || 'spin:38,39 sway:27,28 stroke:6,7').split(' ');
+  const out = {};
+  for (const part of spec) {
+    const [name, list] = part.split(':');
+    const S = OFFICIAL[name];
+    out[name] = {};
+    let warm = null;
+    for (const f of list.split(',').map(Number)) {
+      const tgt = await target(S.frames[S.seq[f]]);
+      // a few starts: from the rest pose, from the previous fit, and with the tail turned
+      const starts = [{}, warm || {}, { yaw: RIG_MODEL.rest.yaw + Math.PI / 2 }, { yaw: RIG_MODEL.rest.yaw - Math.PI / 2 }, { yaw: RIG_MODEL.rest.yaw + 0.6 }, { yaw: RIG_MODEL.rest.yaw - 0.6 }];
+      let best = null;
+      for (const s of starts) { const r = fit(tgt, s); if (!best || r.e < best.e) best = r; }
+      warm = best.p;
+      const p = {}; for (const k of KEYS) p[k] = Math.round(best.p[k] * 10000) / 10000;
+      out[name][f] = { p, e: Math.round(err(render(best.p), tgt) * 10000) / 10000 };
+      document.getElementById('out').textContent = JSON.stringify(out, null, 1);
+    }
+  }
+  window.__fit = out;
+})();
+</script>
+</body>
+</html>

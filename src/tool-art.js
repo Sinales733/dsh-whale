@@ -1,9 +1,6 @@
-// Tool-row leading-icon animations (one per tool variant), 16×16 SVG markup at time t.
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const seg = (t, a, b) => clamp01((t - a) / (b - a));
+// Tool-row leading-icon animations (one per tool variant): each renderer returns SVG markup for a 16×16
+// box at time t (seconds since the call started). Uses sfSeg (surface.js).
 const f2 = (v) => Math.round(v * 100) / 100;
-// ============================================================================ tool icons
-// Each renderer returns SVG markup for a 16×16 box at time t (seconds since the call started).
 const g = (inner, extra = '') => `<g stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" ${extra}>${inner}</g>`;
 
 const TOOL_ART = {
@@ -53,7 +50,7 @@ const TOOL_ART = {
     const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
     const P = (along, side) => `${f2(tx + dx * along + nx * side)} ${f2(ty + dy * along + ny * side)}`;
     const pencil = `M${P(0, 0)}L${P(2, -1)}L${P(8, -1)}L${P(8, 1)}L${P(2, 1)}Z M${P(2, -1)}L${P(2, 1)}`;
-    return g(`<path d="${trail}"/>`, `opacity="${f2(1 - seg(k, 0.85, 1))}"`) + g(`<path d="${pencil}" stroke-width="0.9"/>`);
+    return g(`<path d="${trail}"/>`, `opacity="${f2(1 - sfSeg(k, 0.85, 1))}"`) + g(`<path d="${pencil}" stroke-width="0.9"/>`);
   },
   // angle brackets breathing apart while the slash tips back and forth
   code(t) {
@@ -79,5 +76,3 @@ const TOOL_ART = {
   },
 };
 TOOL_ART.edit = TOOL_ART.write;
-
-
