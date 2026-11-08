@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body{margin:0;background:#151517;color:#8a8f98;font:11px "Segoe UI",sans-serif;padding:6px}
+  .r{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px}
+  .r b{display:block;width:100%;color:#d6d9df;font-size:12px;margin:2px 0}
+  .c{position:relative;background:#1b1c20;border-radius:4px}
+  .c i{position:absolute;left:3px;top:1px;font-style:normal;font-size:10px;color:#666b74}
+</style>
+</head>
+<body>
+<div id="host"></div>
+<script src="../src/rig-model.js"></script>
+<script src="../src/rig.js"></script>
+<script src="../src/surface.js"></script>
+<script src="../src/surface-anims.js"></script>
+<script src="../src/noto-blow-data.js"></script>
+<script src="../src/noto-blow.js"></script>
+<script>
+  // Debug sheets. ?a=<loop>&n=<cells>&from=&to=&s=<px>   or   ?poses=<json array of pose overrides>
+  const Q = new URLSearchParams(location.search);
+  const S = Number(Q.get('s') || 120);
+  const host = document.getElementById('host');
+  const PAD = 6;   // viewBox units shown around the 16x16 icon box
+  function cell(row, label, drawFr) {
+    const c = document.createElement('canvas');
+    const dpr = 1;
+    c.width = c.height = S * dpr;
+    c.className = 'c';
+    c.style.width = c.style.height = S + 'px';
+    const wrap = document.createElement('div');
+    wrap.className = 'c';
+    wrap.appendChild(c);
+    wrap.insertAdjacentHTML('beforeend', `<i>${label}</i>`);
+    row.appendChild(wrap);
+    const ctx = c.getContext('2d');
+    const k = (S * dpr) / (16 + 2 * PAD);
+    ctx.setTransform(k, 0, 0, k, PAD * k, PAD * k);
+    ctx.lineWidth = 0.05; ctx.strokeStyle = '#34363d';
+    ctx.strokeRect(0, 0, 16, 16);
+    ctx.beginPath(); ctx.moveTo(-PAD, SF_WATER); ctx.lineTo(16 + PAD, SF_WATER); ctx.setLineDash([0.3, 0.3]); ctx.stroke(); ctx.setLineDash([]);
+    drawFr(ctx);
+  }
+  const color = '#7d93f2';
+  if (Q.get('poses')) {
+    const list = JSON.parse(Q.get('poses'));
+    const row = document.createElement('div'); row.className = 'r'; host.appendChild(row);
+    for (const o of list) {
+      const p = Object.assign(sfRestPose(), o);
+      const pts = sfProject(p);
+      cell(row, JSON.stringify(o).replace(/[{}"]/g, ''), (ctx) => sfDraw(ctx, { tail: sfPath(pts), ghosts: [], shapes: [], ripples: [], drops: [], rings: [], strokes: [] }, color));
+    }
+  } else {
+    const names = Q.get('a') ? Q.get('a').split(',') : Object.keys(SF_DEFS);
+    const N = Number(Q.get('n') || 24);
+    for (const name of names) {
+      const per = SF_DEFS[name].period;
+      const from = Number(Q.get('from') || 0), to = Number(Q.get('to') || per);
+      const row = document.createElement('div'); row.className = 'r'; row.innerHTML = `<b>${name}</b>`; host.appendChild(row);
+      for (let i = 0; i < N; i++) {
+        const t = from + (i / N) * (to - from);
+        const fr = sfFrame(name, t);
+        cell(row, t.toFixed(2), (ctx) => sfDraw(ctx, fr, color));
+      }
+    }
+  }
+</script>
+</body>
+</html>

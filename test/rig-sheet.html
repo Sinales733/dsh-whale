@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body{margin:0;background:#151517;color:#8a8f98;font:11px "Segoe UI",sans-serif;padding:6px}
+  .r{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:3px}
+  .r b{width:60px;color:#d6d9df}
+  .c{position:relative;width:var(--s,100px);height:var(--s,100px);background:#1b1c20;border-radius:4px}
+  .c svg{position:absolute;left:8%;top:8%;width:84%;height:84%;overflow:visible;color:#7d93f2}
+  .c i{position:absolute;left:3px;bottom:1px;font-style:normal;font-size:9px;color:#555a63}
+</style>
+</head>
+<body>
+<div id="host"></div>
+<script src="../src/rig-model.js"></script>
+<script src="../src/rig.js"></script>
+<script>
+  const D = Math.PI / 180;
+  const REST = rigPath(rigProject(restPose()));
+  const host = document.getElementById('host');
+  const Q = new URLSearchParams(location.search);
+  document.documentElement.style.setProperty('--s', (Q.get('s') || 100) + 'px');
+  function cell(pose, label, extra = '') {
+    return `<div class="c"><svg viewBox="0 0 16 16" fill="none"><rect width="16" height="16" stroke="#333" stroke-width="0.08"/>` +
+      `<path d="${REST}" stroke="#34363d" stroke-width="0.5"/>${extra}` +
+      `<path d="${rigPath(rigProject(pose))}" stroke="currentColor" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/></svg><i>${label}</i></div>`;
+  }
+  function row(name, vals, fn) {
+    const r = document.createElement('div'); r.className = 'r';
+    r.innerHTML = `<b>${name}</b>` + vals.map((v) => { const p = restPose(); fn(p, v); return cell(p, typeof v === 'number' ? v.toFixed(0) : v); }).join('');
+    host.appendChild(r);
+  }
+  const front = (p) => { p.yaw = 0; p.pitch = 0; p.rollB = 0; p.rollT = 0; };
+  const rows = (Q.get('rows') || 'yaw,frontyaw,pitch,roll,flex,dihed,twist').split(',');
+  if (rows.includes('yaw')) row('yaw', [-180, -150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150], (p, v) => { p.yaw += v * D; });
+  if (rows.includes('frontyaw')) row('front yaw', [-90, -75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75], (p, v) => { front(p); p.yaw = v * D; });
+  if (rows.includes('pitch')) row('front pitch', [-90, -70, -50, -30, -15, 0, 15, 30, 50, 70, 90, 120], (p, v) => { front(p); p.pitch = v * D; });
+  if (rows.includes('roll')) row('rest roll', [-40, -30, -20, -10, 0, 10, 20, 30], (p, v) => { p.rollT += v * D; p.rollB += v * D * 0.3; });
+  if (rows.includes('flex')) row('flexP', [-60, -45, -30, -15, 0, 15, 30, 45, 60], (p, v) => { p.flexP = v * D; });
+  if (rows.includes('dihed')) row('dihed', [-60, -40, -20, 0, 20, 40, 60], (p, v) => { p.dihed = v * D; });
+  if (rows.includes('twist')) row('twist', [-120, -80, -40, 0, 40, 80, 120], (p, v) => { p.twist = v * D; });
+</script>
+</body>
+</html>

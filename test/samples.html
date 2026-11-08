@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>鲸尾新动作</title>
+<style>
+  html,body{margin:0;background:#151517;color:#e6e8ec;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+  body{padding:14px 16px;box-sizing:border-box}
+  .row{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;max-width:900px}
+  .card{background:#1a1b1f;border:1px solid #24252a;border-radius:12px;padding:10px 12px 10px;display:flex;flex-direction:column;align-items:center}
+  .card h3{margin:0 0 2px;font-size:13px;color:#d6d9df;font-weight:600;align-self:flex-start;white-space:nowrap}
+  .card h3 i{font-style:normal;margin-left:6px;font-size:10px;padding:1px 5px;border-radius:4px;background:#14402c;color:#5fe0a0}
+  .card.ref h3 i{background:#26272c;color:#a6a9b0}
+  .card.new{border-color:#1f4a35}
+  .card p{margin:0 0 2px;font-size:10.5px;line-height:1.38;color:#6b7079;align-self:flex-start;min-height:2.8em}
+  .big{width:220px;height:220px}
+  .running{color:#7d93f2;font-size:12px;line-height:22px;display:flex;margin-top:2px;align-items:center;gap:6px}
+  .ic{width:14px;height:14px;flex:none;position:relative;display:inline-block}
+  .ic canvas{position:absolute;left:-37.5%;top:-37.5%;width:175%;height:175%}
+  .bar{display:flex;gap:6px;align-items:center;margin:0 0 10px;font-size:12px;color:#8a8f98}
+  .bar button{font:inherit;color:#c9ccd3;background:#24252a;border:1px solid #2f3036;border-radius:6px;padding:3px 10px;cursor:pointer}
+  .bar button.on{background:#1d2a52;border-color:#3a4f94;color:#dfe6ff}
+</style>
+</head>
+<body>
+<div class="bar" id="bar">播放速度
+  <button data-s="1" class="on">正常</button><button data-s="0.5">½ 慢放</button><button data-s="0.25">¼ 慢放</button>
+  <button data-s="0">暂停</button><button id="restart">从头播放</button>
+</div>
+<div class="row" id="row"></div>
+<script src="../src/orig-frames.js"></script>
+<script src="../src/rig-model.js"></script>
+<script src="../src/rig.js"></script>
+<script src="../src/surface.js"></script>
+<script src="../src/surface-anims.js"></script>
+<script src="../src/noto-blow-data.js"></script>
+<script src="../src/noto-blow.js"></script>
+<script>
+  const COLOR = '#7d93f2';
+  const PAD = 6, SPAN = 16 + 2 * PAD;
+  const CARDS = [
+    ['original', '原版摆尾', '参照', '现在自带的动画，放这里对比节奏和幅度', 'ref'],
+    ['fluke', '举尾下潜', '正式版', '吸气下沉 → 卷着扬起、尾叶淌水 → 顶点转身 → 竖直滑下 → 回位', 'new'],
+    ['spout', '浮头喷水', '正式版', '下潜 → 头顶浮出 → 冒出一团、冲出水柱、顶上开成两瓣卷边水花 → 碎成水珠落下 → 沉下，尾巴回位', 'new'],
+  ];
+  const Q = new URLSearchParams(location.search);
+  const pick = Q.get('cards') ? Q.get('cards').split(',') : null;
+  const row = document.getElementById('row');
+  if (pick) row.style.gridTemplateColumns = `repeat(${Math.min(4, pick.length)},1fr)`;
+  const dpr = window.devicePixelRatio || 1;
+
+  // original loop: tinted copies of the 28x28 alpha masks
+  const origImgs = ORIG_FRAMES.map((src) => { const im = new Image(); im.src = src; return im; });
+  function origDraw(ctx, t, k) {
+    const idx = ORIG_SEQ[Math.min(ORIG_SEQ.length - 1, Math.floor((t * 1000) / ORIG_FRAME_MS))];
+    const im = origImgs[idx];
+    if (!im.complete) return;
+    const tmp = origDraw.tmp || (origDraw.tmp = document.createElement('canvas'));
+    tmp.width = tmp.height = 28;
+    const tc = tmp.getContext('2d');
+    tc.clearRect(0, 0, 28, 28); tc.globalCompositeOperation = 'source-over'; tc.drawImage(im, 0, 0);
+    tc.globalCompositeOperation = 'source-in'; tc.fillStyle = COLOR; tc.fillRect(0, 0, 28, 28);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(tmp, PAD * k, PAD * k, 16 * k, 16 * k);
+  }
+  const ORIG_PERIOD = (ORIG_SEQ.length * ORIG_FRAME_MS) / 1000;
+
+  const live = [];
+  for (const [name, title, tag, desc, cls] of CARDS) {
+    if (pick && !pick.includes(name)) continue;
+    if (name !== 'original' && !SF_DEFS[name]) continue;
+    const card = document.createElement('div');
+    card.className = 'card ' + cls;
+    card.innerHTML = `<h3>${title}<i>${tag}</i></h3><p>${desc}</p><canvas class="big"></canvas>` +
+      `<div class="running"><span class="ic"><canvas></canvas></span><span>Deep diving for 13s</span></div>`;
+    row.appendChild(card);
+    const [big, small] = card.querySelectorAll('canvas');
+    const bigPx = 220 * dpr; big.width = big.height = bigPx;
+    const smallPx = Math.round(24.5 * Math.max(2, dpr)); small.width = small.height = smallPx;
+    const period = name === 'original' ? ORIG_PERIOD : SF_DEFS[name].period;
+    live.push({ name, big, small, period });
+  }
+  const GIF_PERIOD = Math.max(...live.map((l) => l.period));
+  function paint(cv, name, t) {
+    const ctx = cv.getContext('2d');
+    const k = cv.width / SPAN;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (name === 'original') { origDraw(ctx, t, k); return; }
+    ctx.setTransform(k, 0, 0, k, PAD * k, PAD * k);
+    sfDraw(ctx, sfFrame(name, t), COLOR);
+  }
+  window.__renderAt = (T) => {
+    for (const l of live) {
+      let t = ((T % GIF_PERIOD) + GIF_PERIOD) % GIF_PERIOD;
+      if (t >= l.period) t = 0;
+      paint(l.big, l.name, t);
+      paint(l.small, l.name, t);
+    }
+  };
+  window.__gifPeriod = GIF_PERIOD;
+  Promise.all(origImgs.map((im) => im.decode().catch(() => {}))).then(() => {
+    window.__ready = true;
+    if (!Q.has('manual')) {
+      let speed = 1, T = 0, last = performance.now();
+      const bar = document.getElementById('bar');
+      bar.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        if (b.id === 'restart') { T = 0; return; }
+        speed = Number(b.dataset.s);
+        for (const x of bar.querySelectorAll('button[data-s]')) x.classList.toggle('on', x === b);
+      });
+      const loop = (now) => { T += (Math.max(0, now - last) / 1000) * speed; last = now; window.__renderAt(T); requestAnimationFrame(loop); };
+      requestAnimationFrame(loop);
+    } else { document.getElementById('bar').remove(); window.__renderAt(0); }
+  });
+</script>
+</body>
+</html>

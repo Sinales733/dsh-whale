@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; padding: 18px 24px; background: #151517; color: #e6e8ec; font: 14px "Segoe UI", sans-serif; }
+  .running { color: #6f8cff; font-size: 12px; line-height: 22px; display: flex; margin-bottom: 18px; }
+  .runningContent { display: inline-flex; align-items: center; gap: 6px; }
+  .X_runningIcon { width: 14px; height: 14px; contain: strict; display: inline-flex; position: relative; overflow: hidden; flex: none; }
+  .X_runningWhaleStill { width: 100%; height: 100%; }
+  .row { display: flex; align-items: center; gap: 8px; height: 28px; color: #9aa0a8; font-size: 13px; }
+  .Y_leading { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .title { color: #e6e8ec; }
+  [data-state="error"] .sum { color: #e5484d; }
+</style>
+</head>
+<body>
+<div class="running" data-chat-running="true">
+  <span class="runningContent">
+    <span class="X_runningIcon" aria-hidden="true"><span class="X_runningWhaleAnimated"></span>
+      <svg class="X_runningWhaleStill" viewBox="0 0 16 16"><path d="M8.8 13.7C9 12.3 8.5 10.4 8.5 9.7" stroke="currentColor"/></svg></span>
+    <span>Deep diving for 13s ···</span>
+  </span>
+</div>
+<div id="rows"></div>
+<script>
+  const ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>';
+  const rows = [
+    ['search', 'grep', 'Search', 'pattern "data-state"'],
+    ['read', 'read', 'Read', 'lib/client.js'],
+    ['bash', 'pwsh', 'Run', 'pnpm run build'],
+    ['write', 'write', 'Write', 'src/motion.js'],
+    ['edit', 'edit', 'Edit', 'package.json'],
+    ['code', 'workflow', 'Code', 'orchestrate()'],
+    ['others', 'web_fetch', 'Tool', 'https://example.com'],
+  ];
+  const host = document.getElementById('rows');
+  for (const [variant, tool, title, sum] of rows) {
+    const el = document.createElement('div');
+    el.setAttribute('data-variant', variant); el.setAttribute('data-tool', tool); el.setAttribute('data-state', 'running');
+    el.innerHTML = `<div data-disclosure-row class="row"><span class="Y_leading">${ICON}</span><span class="title">${title}</span><span class="sum">${sum}</span></div>`;
+    host.appendChild(el);
+  }
+  // DSH lazy module loader stand-in
+  window.__ModuleLoader__ = { load({ id, factory }) { window.__plugin = factory(() => ({})); } };
+</script>
+<script src="../lib/client.js"></script>
+<script>
+  const disposers = [];
+  window.__plugin.apply({ effect: (fn) => disposers.push(fn()) });
+  const q = new URLSearchParams(location.search);
+  const finishAt = Number(q.get('finish') || 0);
+  if (finishAt) setTimeout(() => {
+    const els = host.children;
+    for (let i = 0; i < els.length; i++) els[i].setAttribute('data-state', i % 3 === 2 ? 'error' : 'ok');
+  }, finishAt);
+</script>
+</body>
+</html>
