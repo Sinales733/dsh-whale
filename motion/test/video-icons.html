@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>icons for the showcase video</title>
+<!--
+  ?part=whales  every "Deep diving" loop side by side (one iframe per loop, each with whale=<name>)
+  ?part=one&whale=<name>  one whale icon, centred   (&theme=light: white page)
+  ?part=tools   the seven tool icons in a row, looping: run (&run= ms, 2400), finish (3rd and 6th fail), rest (&rest= ms, 1200); first run at &first= ms
+  Meant to be recorded at a tiny CSS size and a high device pixel ratio (e.g. 192×108 at dpr 10).
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #151517; color: #e6e8ec; overflow: hidden; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; padding: 10px 26px; box-sizing: border-box; }
+  iframe { border: 0; width: 100%; height: 100%; background: transparent; }
+  .one { height: 100%; display: flex; align-items: center; justify-content: center; }
+  .running { color: #6f8cff; display: flex; }
+  .X_runningIcon { width: 14px; height: 14px; contain: strict; display: inline-flex; position: relative; overflow: hidden; flex: none; }
+  .X_runningWhaleStill { width: 100%; height: 100%; }
+  .row-of-tools { height: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; color: #c9ccd3; }
+  .Y_leading { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  body.light { background: #ffffff; }
+  body.light .running { color: #4d6bfe; }
+  body.light .row-of-tools { color: #3b3f45; }
+</style>
+</head>
+<body>
+<script src="dsh-icons.js"></script>
+<script>
+  const q = new URLSearchParams(location.search);
+  const part = q.get('part') || 'tools';
+  if (q.get('theme') === 'light') document.body.classList.add('light');
+  const LOOPS = ['original', 'spin', 'sway', 'stroke', 'fluke', 'spout'];
+  window.__ModuleLoader__ = { load({ factory }) { window.__plugin = factory(() => ({})); } };
+  if (part === 'whales') {
+    document.body.innerHTML = '<div class="grid">' + LOOPS.map((n) => `<iframe src="video-icons.html?part=one&whale=${n}"></iframe>`).join('') + '</div>';
+  } else if (part === 'one') {
+    document.body.innerHTML = `<div class="one"><div class="running" data-chat-running="true"><span class="X_runningIcon" aria-hidden="true"><span class="X_runningWhaleAnimated"></span>
+      <svg class="X_runningWhaleStill" viewBox="0 0 16 16"><path d="M8.8 13.7C9 12.3 8.5 10.4 8.5 9.7" stroke="currentColor"/></svg></span></div></div>`;
+  } else {
+    const ICONS = window.DSH_ICONS, VARIANTS = ['search', 'read', 'bash', 'write', 'edit', 'code', 'others'];
+    document.body.innerHTML = '<div class="row-of-tools">' + VARIANTS.map((v) =>
+      `<div data-variant="${v}" data-tool="${v}" data-state="ok"><div data-disclosure-row><span class="Y_leading">${ICONS[v]}</span></div></div>`).join('') + '</div>';
+  }
+</script>
+<script src="../lib/client.js"></script>
+<script>
+  if (part !== 'whales') window.__plugin.apply({ effect: (fn) => fn() }, part === 'one' ? { whale: q.get('whale') } : {});
+  if (part === 'tools') {
+    const els = document.querySelectorAll('[data-tool]');
+    const RUN = Number(q.get('run') || 2400), REST = Number(q.get('rest') || 1200);
+    const cycle = () => {
+      els.forEach((e) => e.setAttribute('data-state', 'running'));
+      setTimeout(() => els.forEach((e, i) => e.setAttribute('data-state', i === 2 || i === 5 ? 'error' : 'ok')), RUN);
+      setTimeout(cycle, RUN + REST);
+    };
+    setTimeout(cycle, Number(q.get('first') || 300));
+  }
+</script>
+</body>
+</html>

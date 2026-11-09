@@ -59,7 +59,15 @@ const TOOL_ART = {
     taSet(p[2], taAbout(12.375, 12.44, 1 - 0.45 * (0.5 + 0.5 * Math.sin(w * 1.3 + Math.PI)) * a));
   },
 };
-TOOL_ART.edit = TOOL_ART.write;
+// edit, same icon as write: the pen pushes in and pulls back along its own axis, revising, while the
+// frame stretches open a touch from its far corner each time the pen draws back
+TOOL_ART.edit = (p, t, a) => {
+  if (p.length !== 2) return false;
+  const w = t * 3.6, s = Math.sin(w), back = Math.max(0, -s);
+  const along = 1.5 * s * a;
+  taSet(p[1], `translate(${taF(-along * 0.707)} ${taF(along * 0.707)})`);
+  taSet(p[0], taAbout(1.7, 14.3, 1 + 0.045 * back * back * a));
+};
 
 // any other icon: its parts breathe in turn about their own centres
 function taGeneric(p, t, a) {
