@@ -1,0 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>size check</title>
+<style>body{margin:0;background:#151517;color:#ccc;font:11px monospace;padding:8px}canvas{image-rendering:pixelated}</style></head>
+<body><pre id="out">running…</pre><canvas id="sheet"></canvas>
+<script>window.__ModuleLoader__ = { load({ factory }) { window.__plugin = factory(() => ({})); } };</script>
+<script src="../lib/client.js"></script>
+<script>
+// How big is the tail in each loop? Renders every loop pinned, over one period, and measures the inked box
+// above the waterline (alpha > 0.35, in canvas pixels; 1.75 px = 1 icon unit).
+const P = window.__plugin;
+const imgs = Object.values(P.whaleImages()).flat();
+const ready = (im) => (im.getContext ? new Promise((r) => { const chk = () => (im.ready ? r() : setTimeout(chk, 20)); chk(); }) : im.complete ? 1 : new Promise((r) => { im.onload = im.onerror = r; }));
+const PER = { original: 1.1, spin: 5.2, sway: 4.2, stroke: 4.2, fluke: 4.3, spout: 4.2 };
+const WATER = 10 + 13.742 * 1.75;
+Promise.all(imgs.map(ready)).then(() => {
+  const host = document.createElement('span');
+  host.style.cssText = 'position:relative;display:inline-block;width:14px;height:14px;color:#7d93f2';
+  document.body.appendChild(host);
+  const res = {}, picks = {};
+  for (const n of Object.keys(PER)) {
+    const w = P.createWhale(n); host.appendChild(w.el);
+    const cv = w.el.querySelector('canvas'), g = cv.getContext('2d');
+    const rows = [];
+    for (let i = 0; i < PER[n] * 60; i++) {
+      const t = 10 + i / 60;
+      w.render(t);
+      const st = w.state();
+      if (!/^(original|loop:|surf)/.test(st.clip)) continue;          // only the loop itself
+      const d = g.getImageData(0, 0, 48, 48).data;
+      let x0 = 99, x1 = -1, y0 = 99, ink = 0;
+      for (let y = 0; y < WATER - 1; y++) for (let x = 0; x < 48; x++) {
+        const a = d[(y * 48 + x) * 4 + 3] / 255;
+        if (a > 0.35) { ink += a; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; }
+      }
+      if (x1 < 0) continue;
+      rows.push({ t: i / 60, w: x1 - x0 + 1, h: WATER - y0, ink, img: d.slice() });
+    }
+    w.el.remove();
+    const med = (k) => { const s = rows.map((r) => r[k]).sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+    const max = (k) => Math.max(...rows.map((r) => r[k]));
+    res[n] = { frames: rows.length, wMed: med('w'), wMax: max('w'), hMed: +med('h').toFixed(1), hMax: +max('h').toFixed(1), inkMed: Math.round(med('ink')) };
+    rows.sort((a, b) => b.h - a.h); picks[n] = [rows[0], rows[Math.floor(rows.length / 2)]];
+  }
+  document.getElementById('out').textContent = JSON.stringify(res, null, 1);
+  // sheet: tallest and median frame of every loop, the built-in resting outline drawn over each in red
+  const names = Object.keys(picks), z = 5, S = 48 * z;
+  const sheet = document.getElementById('sheet'); sheet.width = names.length * S; sheet.height = 2 * S + 14;
+  const x = sheet.getContext('2d'); x.imageSmoothingEnabled = false; x.fillStyle = '#0d0d10'; x.fillRect(0, 0, sheet.width, sheet.height);
+  const tmp = document.createElement('canvas'); tmp.width = tmp.height = 48; const tg = tmp.getContext('2d');
+  const ref = picks.original[0].img;
+  names.forEach((n, c) => picks[n].forEach((r, k) => {
+    const id = new ImageData(new Uint8ClampedArray(r.img), 48, 48);
+    for (let j = 0; j < 48 * 48; j++) { if (ref[j * 4 + 3] > 90 && id.data[j * 4 + 3] < 90) { id.data[j * 4] = 255; id.data[j * 4 + 1] = 70; id.data[j * 4 + 2] = 70; id.data[j * 4 + 3] = 150; } }
+    tg.putImageData(id, 0, 0); x.drawImage(tmp, c * S, 14 + k * S, S, S);
+    x.fillStyle = '#ff0'; x.font = '11px monospace'; x.fillText(n, c * S + 4, 11);
+  }));
+  window.__res = res;
+});
+</script></body></html>
