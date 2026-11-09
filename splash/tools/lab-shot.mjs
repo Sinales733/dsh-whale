@@ -1,7 +1,7 @@
 // Render a frame-exact contact sheet of the launch splash with preview/lab.html in headless Chrome.
 //   node tools/lab-shot.mjs "<lab.html query>" <out.png> [--dpr 1|2] [--timeout 120000]
 // e.g. node tools/lab-shot.mjs "dir=pulsar&scene=pulsar&times=3.2:4.6:0.05&crop=240,260,800,300&cols=3&cw=600" out.png
-// Needs the preview server (http://localhost:8765, .claude/launch.json "samples"). Prints the frame-cost
+// Needs a static server for the project root on http://localhost:8765. Prints the frame-cost
 // stats (ms of script per frame, virtual clock; idle and during the exit).
 // Each run uses a throwaway Chrome profile under .cache/labshot/ in this project (never the system drive's
 // temp folder) and deletes it once Chrome has exited; profiles left by killed runs are swept on the next run.
