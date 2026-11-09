@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+    <title>DeepSeek Harness</title>
+    <link rel="stylesheet" href="../lib/welcome/brand-font.css">
+    <link rel="stylesheet" href="splash.css">
+    <script src="splash.js" defer></script>
+  </head>
+  <body>
+    <canvas id="fx"></canvas>
+    <div class="hud" id="hud">
+      <span class="tl" id="hud-tl"></span>
+      <span class="tr" id="hud-tr"></span>
+      <span class="bl" id="hud-bl"></span>
+      <span class="br" id="hud-br"></span>
+    </div>
+    <div class="title" id="title">
+      <h1 id="title-text" aria-label="DeepSeek Harness"></h1>
+      <i class="rule"></i>
+      <p id="status"></p>
+    </div>
+    <!-- Mirrors the web app's boot card so the hand-off is pixel-continuous. -->
+    <div class="handoff" id="handoff">
+      <div class="wordmark">HARNESS</div>
+      <div class="hint">Loading plugins…</div>
+      <div class="spin" id="handoff-spin"><i></i></div>
+    </div>
+  </body>
+</html>
