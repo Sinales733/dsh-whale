@@ -1,0 +1,142 @@
+:root {
+  --bg: #151517;
+  --fg: 249, 250, 251;
+  --wordmark: #f9fafb;
+  --hint: #adb2b8;
+  --mono: Consolas, "Cascadia Mono", "SF Mono", monospace;
+}
+:root.light {
+  --bg: #ffffff;
+  --fg: 15, 17, 21;
+  --wordmark: #0f1115;
+  --hint: #81858c;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+body { font-family: Montserrat, "Segoe UI", system-ui, sans-serif; }
+
+canvas#fx {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Corner telemetry */
+.hud span {
+  position: fixed;
+  font: 10px/15px var(--mono);
+  letter-spacing: 0.14em;
+  color: rgba(var(--fg), 0.36);
+  opacity: 0;
+  transition: opacity 500ms ease;
+  white-space: pre;
+}
+.hud.on span { opacity: 1; }
+.hud .tl { left: 54px; top: 46px; }
+.hud .tr { right: 54px; top: 46px; text-align: right; }
+.hud .bl { left: 54px; bottom: 46px; }
+.hud .br { right: 54px; bottom: 46px; text-align: right; }
+.hud.out span { opacity: 0; transition-duration: 280ms; }
+
+.title {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  text-align: center;
+  color: rgba(var(--fg), 0.92);
+  transition: opacity 360ms ease, transform 600ms cubic-bezier(0.7, 0, 0.84, 0);
+}
+.title.out { opacity: 0; transform: translateY(-10px); }
+
+h1 {
+  margin: 0;
+  font-weight: 300;
+  font-size: 21px;
+  line-height: 28px;
+  letter-spacing: 0.62em;
+  text-indent: 0.62em;
+  white-space: pre;
+}
+h1 span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 520ms ease, transform 760ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+h1 span.on { opacity: 1; transform: none; }
+
+.rule {
+  display: block;
+  margin: 16px auto 0;
+  height: 1px;
+  width: 0;
+  background: linear-gradient(90deg, transparent, rgba(var(--fg), 0.55), transparent);
+  transition: width 1100ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.title.on .rule { width: 360px; }
+
+#status {
+  margin: 14px 0 0;
+  font: 10.5px/16px var(--mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(var(--fg), 0.45);
+  min-height: 16px;
+}
+
+/* Replica of the web app boot card (card gap 16; wordmark 16/24 600 .08em; spinner 20; hint 12/18).
+   Relative to the window centre: wordmark -35px, spinner +3px, hint +38px. */
+.handoff > div {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 300ms ease, transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.handoff .wordmark {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--wordmark);
+  transform: translate(-50%, -50%) translateY(-28px);
+}
+.handoff .hint {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--hint);
+  transform: translate(-50%, -50%) translateY(46px);
+}
+.handoff.on .wordmark { opacity: 1; transform: translate(-50%, -50%) translateY(-35px); }
+.handoff.on .hint { opacity: 1; transform: translate(-50%, -50%) translateY(38px); transition-delay: 80ms; }
+
+/* Exact mode: boxes, fonts and colours come from the main window's measured boot card. */
+.handoff.exact .wordmark, .handoff.exact .hint { text-align: center; transform: translateY(7px); }
+.handoff.exact.on .wordmark, .handoff.exact.on .hint { transform: none; }
+
+/* Replica of the boot spinner; geometry, colours, arc and phase are set from the measurements. */
+.handoff .spin {
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-radius: 50%;
+  transition: none;
+  opacity: 0;
+}
+.handoff .spin i {
+  position: absolute;
+  border-radius: inherit;
+}
+@keyframes handoff-spin { to { transform: rotate(360deg); } }

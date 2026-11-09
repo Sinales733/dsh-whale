@@ -41,6 +41,18 @@ dsh plugin --profile desktop add link:/path/to/dsh-motion
 
 源码在 `src/`，`node build.mjs` 打包为 DSH 客户端模块 `lib/client.js`。`test/` 下的页面可直接在浏览器中预览各动画。
 
+## 启动动画 / Launch splash
+
+`splash/` 是 DSH 启动时的画面（独立于插件，不随 npm 包发布）。共 10 个线稿场景，每次启动随机播一个，最后收进网页版的加载圈：CONSTRUCT、ORBIT、SIGNAL、WEAVE、PULSAR、CURRENT、SPLINE、HANZI、SHADOW、ECHO。
+
+- `splash/src/`：共享工具 `core.js`、每个场景一个文件 `scenes/*.js`、帧循环与收尾交接 `boot.js`。写新场景先看 `splash/SCENE-GUIDE.md`。
+- `splash/splash.{html,css,js}`：构建好的启动页。`splash/main-splash.js.txt` 是主进程里显示启动窗口的那段代码。
+- `splash/tools/`：`build-splash.mjs` 构建、`lab-shot.mjs` 逐帧截图与跳帧检测、`asar-*.mjs` 打包进 `app.asar`。
+- `splash/preview/`：`splash-viewer.html` 实时播放，`lab.html` + `lab-clock.js` 是虚拟时钟实验台。
+- `splash/install-splash.ps1` / `restore-splash.ps1`：安装到本机 DSH / 还原原版。
+
+这些脚本按开发机上的目录结构写成（`F:\DeepClaude` 下 `splash/`、`tools/`、`preview/`、`asar-src/` 并列），这里是对应文件的存档。
+
 ## 致谢与许可 / Credits & License
 
 - 插件代码：MIT License。

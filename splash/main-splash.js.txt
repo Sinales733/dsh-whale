@@ -1,0 +1,189 @@
+//#region launch splash (custom)
+/**
+* Launch splash shown while the bundled runtime boots. It occupies exactly the main window's
+* bounds with the web app's background colour, so when the main window appears the splash
+* collapses its geometry into the web app's own boot spinner and dissolves — one continuous
+* picture instead of two windows. The renderer ships several scenes and picks one at random,
+* never repeating the previous launch's scene.
+* Set DSH_DESKTOP_NO_SPLASH=1 to disable; DSH_DESKTOP_SPLASH_SCENE=<name> forces a scene.
+*/
+var launchSplashHandle;
+const LAUNCH_SPLASH_STATE = "launch-splash.json";
+/**
+* Runs inside the shown main window: measures the web app's boot card (computed fonts and colours,
+* layout boxes, spinner geometry, progress arc and rotation phase) so the splash can finish on an
+* exact replica. Returns null when the boot card is not on screen.
+*/
+const LAUNCH_SPLASH_PROBE = `(() => {
+	const sp = document.querySelector('[data-dsh-boot-spinner]');
+	const root = document.querySelector('[data-dsh-boot]');
+	if (!sp || !root || !sp.parentElement) return null;
+	const card = sp.parentElement;
+	const wm = card.firstElementChild, hint = card.lastElementChild;
+	if (!wm || !hint || wm === sp || hint === sp) return null;
+	const box = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return { x: r.left, y: r.top, w: r.width, h: r.height, text: el.textContent, font: s.font, letterSpacing: s.letterSpacing, color: s.color }; };
+	const r = sp.getBoundingClientRect();
+	const ss = getComputedStyle(sp), sa = getComputedStyle(sp, '::after');
+	const anim = sp.getAnimations().find((a) => a.effect && typeof a.effect.getTiming === 'function');
+	const dur = anim ? Number(anim.effect.getTiming().duration) || 800 : 800;
+	const time = anim ? Number(anim.currentTime) || 0 : 0;
+	return {
+		at: Date.now(), vw: innerWidth, vh: innerHeight,
+		bg: getComputedStyle(root).backgroundColor,
+		wordmark: box(wm), hint: box(hint),
+		spinner: { cx: r.left + r.width / 2, cy: r.top + r.height / 2, size: sp.offsetWidth, bw: parseFloat(ss.borderTopWidth) || 0, border: ss.borderTopColor },
+		after: { background: sa.backgroundImage, mask: sa.maskImage && sa.maskImage !== 'none' ? sa.maskImage : sa.webkitMaskImage },
+		phase: (time % dur) / dur, dur
+	};
+})()`;
+function readLaunchSplashState() {
+	try {
+		const saved = JSON.parse(readFileSync(join(app.getPath("userData"), LAUNCH_SPLASH_STATE), "utf8"));
+		return saved !== null && typeof saved === "object" ? saved : {};
+	} catch (_error) {
+		return {};
+	}
+}
+function updateLaunchSplashState(patch) {
+	try {
+		writeFileSync(join(app.getPath("userData"), LAUNCH_SPLASH_STATE), JSON.stringify({ ...readLaunchSplashState(), ...patch }));
+	} catch (_error) {}
+}
+/** Remember the renderer's theme choice so the next splash matches the app before it loads. */
+function rememberLaunchSplashTheme(source) {
+	if (readLaunchSplashState().themeSource !== source) updateLaunchSplashState({ themeSource: source });
+}
+function launchSplashDark(state) {
+	const source = state.themeSource === "light" || state.themeSource === "dark" ? state.themeSource : "system";
+	return source === "system" ? nativeTheme.shouldUseDarkColors : source === "dark";
+}
+function openLaunchSplash(localeId) {
+	const noop = { dismiss() {} };
+	if (process.env.DSH_DESKTOP_NO_SPLASH === "1") return noop;
+	const MIN_VISIBLE_MS = 3e3;
+	const COLLAPSE_TIMEOUT_MS = 6e3;
+	const FADE_MS = 200;
+	const HARD_DEADLINE_MS = 9e4;
+	const saved = readLaunchSplashState();
+	const dark = launchSplashDark(saved);
+	let splash;
+	try {
+		splash = new BrowserWindow({
+			width: 1280,
+			height: 820,
+			center: true,
+			show: false,
+			frame: false,
+			backgroundColor: dark ? "#151517" : "#ffffff",
+			resizable: false,
+			movable: false,
+			minimizable: false,
+			maximizable: false,
+			fullscreenable: false,
+			alwaysOnTop: true,
+			skipTaskbar: false,
+			title: "DeepSeek Harness",
+			webPreferences: {
+				contextIsolation: true,
+				sandbox: true,
+				nodeIntegration: false,
+				webSecurity: true,
+				devTools: false
+			}
+		});
+	} catch (error) {
+		console.warn("desktop splash: unavailable", error);
+		return noop;
+	}
+	const createdAt = Date.now();
+	let state = "open";
+	let aligned = false;
+	const destroy = () => {
+		state = "closed";
+		app.off("browser-window-created", onWindow);
+		if (!splash.isDestroyed()) splash.destroy();
+	};
+	const fadeOut = () => {
+		if (splash.isDestroyed()) return destroy();
+		const start = Date.now();
+		const timer = setInterval(() => {
+			const k = Math.min(1, (Date.now() - start) / FADE_MS);
+			if (splash.isDestroyed() || k >= 1) {
+				clearInterval(timer);
+				destroy();
+				return;
+			}
+			splash.setOpacity(1 - k * k);
+		}, 16);
+	};
+	const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+	const within = (promise, ms) => Promise.race([promise, sleep(ms).then(() => null)]);
+	/** Measure the web app's boot card in the shown window; null when it is not on screen. */
+	const probe = (target) => {
+		if (target === void 0 || target.isDestroyed()) return Promise.resolve(null);
+		return within(target.webContents.executeJavaScript(LAUNCH_SPLASH_PROBE, true).catch(() => null), 400);
+	};
+	const sendToSplash = (fn, record) => splash.isDestroyed() ? Promise.resolve() : splash.webContents.executeJavaScript(`window.${fn} ? window.${fn}(${JSON.stringify(record ?? null)}) : undefined`, true).catch(() => void 0);
+	const dismiss = (immediate = false, shown = void 0) => {
+		if (immediate === true) return destroy();
+		if (state !== "open") return;
+		state = "leaving";
+		const wait = Math.max(0, MIN_VISIBLE_MS - (Date.now() - createdAt));
+		setTimeout(async () => {
+			if (splash.isDestroyed()) return destroy();
+			splash.setSkipTaskbar(true);
+			// converge onto the measured spinner, then refresh its arc/phase right before the swap
+			const first = await probe(shown);
+			await within(sendToSplash("__dshSplashExit", first), COLLAPSE_TIMEOUT_MS);
+			const last = await probe(shown);
+			if (last !== null) {
+				await sendToSplash("__dshSplashSync", last);
+				await sleep(34);
+			}
+			fadeOut();
+		}, wait);
+	};
+	const onWindow = (_event, window) => {
+		if (window === splash) return;
+		// The first full-size window is the main window: sit exactly on top of its content area.
+		if (!aligned && !splash.isDestroyed()) {
+			const bounds = window.getContentBounds();
+			if (bounds.width >= 1e3) {
+				aligned = true;
+				splash.setContentBounds(bounds);
+			}
+		}
+		window.once("show", () => dismiss(false, window));
+	};
+	app.on("browser-window-created", onWindow);
+	app.once("before-quit", destroy);
+	splash.once("closed", () => {
+		state = "closed";
+		app.off("browser-window-created", onWindow);
+	});
+	splash.setMenu(null);
+	splash.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+	splash.webContents.on("will-navigate", (event) => event.preventDefault());
+	splash.once("ready-to-show", () => {
+		if (state !== "closed" && !splash.isDestroyed()) splash.show();
+	});
+	setTimeout(dismiss, HARD_DEADLINE_MS).unref?.();
+	splash.loadFile(join(app.getAppPath(), "renderer", "splash.html"), { query: {
+		lang: localeId,
+		v: app.getVersion(),
+		theme: dark ? "dark" : "light",
+		avoid: typeof saved.lastScene === "string" ? saved.lastScene : "",
+		scene: process.env.DSH_DESKTOP_SPLASH_SCENE ?? ""
+	} }).then(() => {
+		if (splash.isDestroyed()) return;
+		// Record which scene played so the next launch picks a different one.
+		return splash.webContents.executeJavaScript("window.__dshSplashScene", true).then((scene) => {
+			if (typeof scene === "string" && /^[a-z]{1,32}$/u.test(scene)) updateLaunchSplashState({ lastScene: scene });
+		});
+	}).catch((error) => {
+		console.warn("desktop splash: failed to load", error);
+		destroy();
+	});
+	return { dismiss };
+}
+//#endregion
