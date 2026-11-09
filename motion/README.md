@@ -24,11 +24,11 @@ DeepSeek Harness 的客户端插件，让对话里的运行指示器更灵动。
 ## 安装 / Install
 
 ```bash
-git clone https://github.com/Sinales733/dsh-motion.git
-dsh plugin --profile desktop add link:/path/to/dsh-motion
+git clone https://github.com/Sinales733/dsh-whale.git
+dsh plugin --profile desktop add link:/path/to/dsh-whale/motion
 ```
 
-桌面版的 `dsh` 位于安装目录下的 `resources/runtime/cli/bin/dsh.cmd`。也可以下载 [Releases](https://github.com/Sinales733/dsh-motion/releases) 中的 `.tgz` 包解压后用同样方式添加。安装后刷新 DSH 窗口即可。
+桌面版的 `dsh` 位于安装目录下的 `resources/runtime/cli/bin/dsh.cmd`。也可以下载 [Releases](https://github.com/Sinales733/dsh-whale/releases) 中的 `.tgz` 包解压后用同样方式添加。安装后刷新 DSH 窗口即可。
 
 ## 配置 / Options
 
@@ -41,7 +41,7 @@ dsh plugin --profile desktop add link:/path/to/dsh-motion
 
 源码在 `src/`，`node build.mjs` 打包为 DSH 客户端模块 `lib/client.js`。`test/` 下的页面可直接在浏览器中预览各动画。
 
-启动动画在单独的仓库：[dsh-splash](https://github.com/Sinales733/dsh-splash)。
+启动动画在同一仓库的 [`splash/`](../splash) 文件夹。
 
 ## 致谢与许可 / Credits & License
 
