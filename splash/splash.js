@@ -23,7 +23,7 @@ let SPIN_R = 9;                        // spinner track centre-line radius; idem
 const MONO = 'Consolas, "Cascadia Mono", monospace';
 
 const STATUS = zh
-  ? ['初始化运行时', '装载智能体', '建立工作区', '同步插件', '即将就绪']
+  ? ['初始化运行中', '装载智能体', '建立工作区', '同步插件', '即将就绪']
   : ['Initializing runtime', 'Loading agents', 'Building workspace', 'Syncing plugins', 'Almost ready'];
 
 const canvas = document.getElementById('fx');
