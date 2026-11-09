@@ -1,9 +1,7 @@
 // ===== core: shared environment for every launch scene =====================================
-// A scene is { label, layout(), frame(t, ex, ek), readout(t)?, titleAt?, exitDur? }.
-//   t  — seconds since the splash started
-//   ex — exit progress 0→1 (0 while idle), ek — eased exit progress
-// Contract: at ex = 1 a scene must leave exactly one ring of radius SPIN_R, alpha RING_ALPHA,
-// width 2 at (HX, HY) — the web app's boot spinner track — and nothing else.
+// A scene is { label, readyAt, layout(), frame(t, ex, ek), readout(t)?, titleAt?, exitDur?, spinnerIn? }.
+// t: seconds since start; ex: exit progress 0→1 (0 while idle); ek = inOutCubic(ex).
+// Contract: at ex = 1 a scene leaves exactly one ring of radius SPIN_R, alpha RING_ALPHA, width 2 at (HX, HY).
 
 const WHALE_PATH = '__WHALE_PATH__';
 const WB = { x: 145.4, y: 11.5, w: 23.3, h: 17.1 }; // glyph bbox in source SVG units
@@ -17,8 +15,8 @@ if (light) document.documentElement.classList.add('light');
 
 const FG = light ? '15,17,21' : '249,250,251';
 const BG = light ? '#ffffff' : '#151517';
-let RING_ALPHA = light ? 0.1 : 0.12;   // web app boot spinner track (--dsh-boot-border); measured at hand-off
-let SPIN_R = 9;                        // spinner track centre-line radius; replaced by the measured value at hand-off
+let RING_ALPHA = light ? 0.1 : 0.12;   // spinner track alpha; replaced by the measured value at hand-off
+let SPIN_R = 9;                        // spinner track centre-line radius; idem
 const MONO = 'Consolas, "Cascadia Mono", monospace';
 
 const STATUS = zh
@@ -39,6 +37,7 @@ const handoff = document.getElementById('handoff');
 
 // ---------------------------------------------------------------- math
 const TAU = Math.PI * 2;
+const DEG = Math.PI / 180;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const seg = (t, a, b) => clamp01((t - a) / (b - a));
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -49,12 +48,15 @@ const inOutSine = (k) => -(Math.cos(Math.PI * k) - 1) / 2;
 const smooth = (k) => k * k * (3 - 2 * k);
 const fract = (v) => v - Math.floor(v);
 const hash = (n) => fract(Math.sin(n * 127.1 + 311.7) * 43758.5453);
+const wrapPi = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);   // angle into (−π, π]
+const pad = (n, w) => String(n).padStart(w, '0');
+/** cumulative arc length of a polyline [[x, y], …] */
+function cumLen(p) { const c = [0]; for (let i = 1; i < p.length; i++) c.push(c[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])); return c; }
 let fgNow = FG;
 const col = (a) => `rgba(${fgNow},${a < 0 ? 0 : a > 1 ? 1 : a})`;
 
-// The boot spinner is styled by the web app (and by anything that restyles it). At hand-off its measured
-// colours replace the built-in ones: the track alpha at once (scenes only ease toward RING_ALPHA during the
-// exit), the ink colour gradually over ex 0.55–0.85, while only the ring and arc are left.
+// The boot spinner is styled by the web app. At hand-off its measured colours replace the built-in ones: the track
+// alpha at once, the ink colour over ex 0.55–0.85 (only the ring and arc are left by then).
 const FG0 = FG.split(',').map(Number);
 let fgEnd = null;
 function parseColor(s) {
@@ -74,7 +76,6 @@ function tintToSpinner(ex) {
   const k = smooth(seg(ex, 0.55, 0.85));
   fgNow = FG0.map((v, i) => Math.round(lerp(v, fgEnd[i], k))).join(',');
 }
-const pad = (n, w) => String(n).padStart(w, '0');
 
 // ---------------------------------------------------------------- layout
 let W = 0, H = 0, DPR = 1, S = 1;
@@ -121,7 +122,7 @@ function whaleSubpaths() {
   return whaleSubs;
 }
 
-/** Whale centred at (cx, cy) with the given pixel height: fill path + sampled outline polylines. */
+/** Whale centred at (cx, cy) with the given pixel height: fill path + sampled outline polylines (longest first). */
 function makeWhale(cx, cy, height, step = 1.6) {
   const k = height / WB.h;
   const ox = cx - (WB.x + WB.w / 2) * k;
@@ -140,8 +141,8 @@ function makeWhale(cx, cy, height, step = 1.6) {
     polys.push(pts);
     total += pts.length;
   }
-  polys.sort((a, b) => b.length - a.length); // body first, details after
-  return { cx, cy, height, width: WB.w * k, k, fill, polys, total };
+  polys.sort((a, b) => b.length - a.length);
+  return { width: WB.w * k, fill, polys, total };
 }
 
 /** Whale outline resampled to exactly N points; `breaks` holds indices that start a new subpath. */
@@ -164,7 +165,7 @@ function whaleContour(wh, N) {
   return { pts, breaks };
 }
 
-/** Rasterised whale coverage lookup in screen space (0..1), optionally blurred for soft edges. */
+/** Rasterised whale coverage lookup (x, y) → 0..1, optionally blurred. Call in layout(). */
 function whaleMask(wh, blur = 0) {
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.ceil(W));
@@ -221,7 +222,15 @@ function text(str, x, y, a, size = 9.5, align = 'left') {
   ctx.fillText(str, x, y);
 }
 
-/** Outline traced from 0..progress, with a pen tip and an optional comet running along it. */
+/** stroke a Path2D with alpha a and width w */
+function strokePath(path, a, w) {
+  if (a <= 0.003) return;
+  ctx.strokeStyle = col(a);
+  ctx.lineWidth = w;
+  ctx.stroke(path);
+}
+
+/** Outline traced from 0..progress, with a pen tip and an optional comet (hiAt..hiAt+hiLen of the outline). */
 function drawWhale(wh, { progress = 1, a = 0.9, w = 1.3, map = null, hiAt = -1, hiLen = 0.14, hiA = 0, tip = true } = {}) {
   if (!wh || a <= 0.003) return;
   const P = map || ((p) => p);
@@ -281,9 +290,9 @@ function drawCorners(t, ex) {
   }
 }
 
-// The web app spinner (web-index.css `_spinner`): a 2px track with a solid progress arc on it, drawn from
-// 12 o'clock clockwise by --dsh-boot-arc (72° by default), the whole thing turning once every 0.8 s.
-/** canvas angle where the spinner's arc starts, now: from the measured spinner when there is one */
+// The web app spinner: a 2px track with a solid progress arc (72° by default, from 12 o'clock clockwise),
+// turning once every 0.8 s. With a measured spinner, its own phase, period and arc are used.
+/** canvas angle where the spinner's arc starts, now */
 function spinnerAngle(t) {
   if (handoffSpec) return TAU * (handoffSpec.phase + (Date.now() - handoffSpec.at) / handoffSpec.dur) - Math.PI / 2;
   return ((t % 0.8) / 0.8) * TAU - Math.PI / 2;
@@ -293,13 +302,13 @@ function spinnerSweep() {
   const m = handoffSpec && /([\d.]+)deg/.exec(handoffSpec.after.background || '');
   return ((m ? Number(m[1]) : 72) * Math.PI) / 180;
 }
-/** The spinner's arc, fading in from exit progress `from` (when no measured spinner takes over). */
-function drawSpinnerHead(t, ex, from = 0.55) {
-  if (ex <= from) return;
-  arc(HX, HY, SPIN_R, spinnerAngle(t), spinnerSweep(), seg(ex, from, 1), 2);
+/** The spinner's arc, fading in from ex 0.55 (for scenes that do not bring it in themselves). */
+function drawSpinnerHead(t, ex) {
+  if (ex <= 0.55) return;
+  arc(HX, HY, SPIN_R, spinnerAngle(t), spinnerSweep(), seg(ex, 0.55, 1), 2);
 }
 
-// ---------------------------------------------------------------- title, status, hud
+// ---------------------------------------------------------------- title, status
 const TITLE = 'DEEPSEEK HARNESS';
 const spans = [...TITLE].map((ch) => {
   const s = document.createElement('span');

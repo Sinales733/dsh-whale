@@ -1,32 +1,28 @@
 // ===== scene: SPLINE — a drafting batten bent into the whale by spline weights ('ducks', 'whales') ======
-// A bentwood loop lies on a lofting table: the whale's own body circle. Twelve spline weights (draftsmen's
-// ducks, also called whales) set down: five hold the head, seven pull the chin, back, and tail out of the
-// circle in two waves that run into the tail. A ruling pen inks the line from the fluke tip round, a second
-// pen inks the curl and the fin, a pin marks the eye. On exit the weights lift, the loop eases back to its
-// circle, which shrinks onto the spinner track while its ink gathers into the progress arc.
+// A bentwood loop lies on a lofting table: the whale's body circle. Twelve spline weights set down: five hold the
+// head, seven pull the chin, back and tail out of the circle in two waves. A ruling pen inks the line from the fluke
+// tip round, a second pen inks the curl and the fin, a pin marks the eye. On exit the weights lift, the loop eases
+// back to its circle, which shrinks onto the spinner track while its ink gathers into the progress arc.
 SCENES.spline = (() => {
   const HW = 200;          // whale height × S
   const NB = 400;          // batten samples (closed)
   const EXD = 1.05;        // exit duration (s)
-  const SIG_LO = 16;       // smoothing of the bulge displacement (samples): the tail swells as one round bud
+  const SIG_LO = 16;       // smoothing of the bulge displacement (samples)
   // weights: u on the body outline (u = 0 at the right fluke tip, increasing anticlockwise on screen)
   const DU = [0.06, 0.135, 0.25, 0.345, 0.43, 0.50, 0.57, 0.64, 0.71, 0.775, 0.87, 0.975];
   const ND = DU.length;
   const HEAD = [4, 5, 6, 7, 8];
   const T_HEAD = [0.79, 0.63, 0.55, 0.71, 0.87];        // head weights set down (hold only)
-  // arrival time of the pull along u (knots, u may exceed 1 to wrap): two waves (chin → right side, head top →
-  // bay) run into the tail, which swells nearly all at once as one bud, notch last
+  // arrival time of the pull along u (knots; u may exceed 1 to wrap): two waves run into the tail, notch last
   const TB = [[0.74, 1.0], [0.775, 1.0], [0.87, 1.12], [0.922, 1.22], [0.975, 1.26], [1.06, 1.29], [1.135, 1.26],
     [1.197, 1.24], [1.25, 1.22], [1.30, 1.16], [1.345, 1.1], [1.40, 1.0], [1.74, 1.0]];
   // release (exit progress) along u: the reverse, from the notch outwards
   const TR = [[0.74, 0.06], [0.775, 0.055], [0.87, 0.045], [0.922, 0.035], [0.975, 0.025], [1.06, 0.012], [1.135, 0.025],
     [1.197, 0.035], [1.25, 0.045], [1.345, 0.055], [1.40, 0.06], [1.74, 0.06]];
-  // each sample eases back (no overshoot) over REL of exit progress: the detail first, the bulge DLY later, so the
-  // flukes melt into a bud before the bud draws in; all of it is round by ex ≈ 0.39
+  // each sample eases back over REL of exit progress: the detail first, the bulge DLY later; all round by ex ≈ 0.39
   const REL = 0.28, DLY = 0.05;
-  // the pens (s). The ruling pen sets down at the fluke tip (u = U0) once the tail has settled and goes once round
-  // the body, so the intricate tail falls in its slow start and finish; a second pen inks the inner curl, then the
-  // fin. Each pen sets down and lifts at rest, and slows where the line turns tightly.
+  // the pens (s): the ruling pen sets down at the fluke tip (U0) once the tail has settled and goes once round the
+  // body; a second pen inks the inner curl, then the fin. Each slows where the line turns tightly.
   const U0 = 0;
   const PEN_B = [1.64, 2.56], PEN_C = [2.34, 2.84], PEN_F = [2.76, 2.98];
   const PACE = 0.9;        // how much a tight turn slows a pen
@@ -60,7 +56,6 @@ SCENES.spline = (() => {
     return 1 - Math.exp(-z * w * tau) * (Math.cos(wd * tau) + ((z * w) / wd) * Math.sin(wd * tau));
   };
   const cyc = (d) => d - Math.round(d);
-  const wrapPI = (a) => a - TAU * Math.round(a / TAU);
   // ease with a cruise: sine ramps over the first and last fraction a, constant speed between
   const glide = (k, a) => {
     if (k <= 0) return 0;
@@ -101,26 +96,33 @@ SCENES.spline = (() => {
     for (let i = 1; i < n; i++) cum[i] /= cum[n - 1];
     return cum;
   }
-
-  // piecewise-linear knots over u in [0.74, 1.74), sampled per batten index, then smoothed (periodic)
-  function knotTable(knots, out, sm) {
-    const raw = new Float32Array(NB);
+  // Gaussian smoothing of a periodic table (sigma sm samples; raw may carry a per-wrap offset)
+  function smoothLoop(raw, out, sm, wrapOff = 0) {
+    for (let i = 0; i < NB; i++) {
+      let s = 0, w = 0;
+      for (let j = -3 * sm; j <= 3 * sm; j++) {
+        const ii = i + j, wrap = Math.floor(ii / NB);
+        const ww = Math.exp(-(j * j) / (2 * sm * sm));
+        s += (raw[((ii % NB) + NB) % NB] - wrap * wrapOff) * ww; w += ww;
+      }
+      out[i] = s / w;
+    }
+  }
+  // piecewise-linear knots over u in [u0, u0 + 1), sampled per batten index
+  function knotRaw(knots, u0, raw) {
     for (let i = 0; i < NB; i++) {
       let u = i / NB;
-      if (u < 0.74) u += 1;
+      if (u < u0) u += 1;
       let j = 0;
       while (j < knots.length - 2 && knots[j + 1][0] < u) j++;
       const [ua, va] = knots[j], [ub, vb] = knots[j + 1];
       raw[i] = va + (vb - va) * clamp01((u - ua) / (ub - ua));
     }
-    for (let i = 0; i < NB; i++) {
-      let s = 0, w = 0;
-      for (let j = -3 * sm; j <= 3 * sm; j++) {
-        const ww = Math.exp(-(j * j) / (2 * sm * sm));
-        s += raw[(((i + j) % NB) + NB) % NB] * ww; w += ww;
-      }
-      out[i] = s / w;
-    }
+  }
+  function knotTable(knots, out, sm) {
+    const raw = new Float32Array(NB);
+    knotRaw(knots, 0.74, raw);
+    smoothLoop(raw, out, sm);
   }
 
   // batten coordinate u (0..1) whose circle angle is th
@@ -133,9 +135,7 @@ SCENES.spline = (() => {
     return (lo + (a - target) / (a - b || 1)) / NB;
   }
 
-  function cumLen(p) { const c = [0]; for (let i = 1; i < p.length; i++) c.push(c[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])); return c; }
-  // polyline points 0..s (fractional index), mapped through (tx, ty), into path; returns the pen point while
-  // it is partial. (The points are mapped, so the details need no context transform during the exit.)
+  // polyline points 0..s (fractional index), mapped through (tx, ty), into path; returns the pen point while partial
   function tracePoly(path, pts, s, tx, ty) {
     if (s <= 0) return null;
     const n = pts.length - 1, m = Math.min(n, Math.floor(s));
@@ -196,11 +196,10 @@ SCENES.spline = (() => {
         C0x = M[0][3] / M[0][0] / 2; C0y = M[1][3] / M[1][1] / 2;
         R0 = Math.sqrt(M[2][3] / M[2][2] + C0x * C0x + C0y * C0y);
       }
-      // correspondence u -> angle on the circle (decreasing): the head keeps its own polar angle, the
-      // bumps take the arc under them, the tail grows out of a short arc at its neck
+      // correspondence u -> angle on the circle (decreasing): the head keeps its own polar angle, the bumps take the
+      // arc under them, the tail grows out of a short arc at its neck
       {
         const phi = (u) => { const i = Math.round(u * NB) % NB; return Math.atan2(Gy[i] - C0y, Gx[i] - C0x); };
-        const deg = Math.PI / 180;
         const a40 = phi(0.40);
         let a74 = phi(0.74);
         while (a74 > a40) a74 -= TAU;
@@ -210,27 +209,13 @@ SCENES.spline = (() => {
           while (a > (knots.length ? knots[knots.length - 1][1] : a40 + 0.5)) a -= TAU;
           knots.push([u, a]);
         }
-        knots.push([0.82, a74 - 18 * deg], [0.922, a74 - 65 * deg], [1.197, a74 - (65 + NECK) * deg],
-          [1.30, a40 - TAU + 57 * deg], [1.40, a40 - TAU]);
+        knots.push([0.82, a74 - 18 * DEG], [0.922, a74 - 65 * DEG], [1.197, a74 - (65 + NECK) * DEG],
+          [1.30, a40 - TAU + 57 * DEG], [1.40, a40 - TAU]);
         const raw = new Float64Array(NB);
+        knotRaw(knots, 0.40, raw);
+        for (let i = 0; i < NB; i++) if (i / NB < 0.40) raw[i] += TAU;
+        smoothLoop(raw, TH, 5, TAU);
         for (let i = 0; i < NB; i++) {
-          let u = i / NB;
-          if (u < 0.40) u += 1;
-          let j = 0;
-          while (j < knots.length - 2 && knots[j + 1][0] < u) j++;
-          const [ua, aa] = knots[j], [ub, ab] = knots[j + 1];
-          raw[i] = aa + (ab - aa) * clamp01((u - ua) / (ub - ua));
-          if (i / NB < 0.40) raw[i] += TAU;
-        }
-        const sm = 5;
-        for (let i = 0; i < NB; i++) {
-          let s = 0, w = 0;
-          for (let j = -3 * sm; j <= 3 * sm; j++) {
-            const ii = i + j, wrap = Math.floor(ii / NB);
-            const ww = Math.exp(-(j * j) / (2 * sm * sm));
-            s += (raw[((ii % NB) + NB) % NB] - wrap * TAU) * ww; w += ww;
-          }
-          TH[i] = s / w;
           Cx[i] = C0x + Math.cos(TH[i]) * R0;
           Cy[i] = C0y + Math.sin(TH[i]) * R0;
         }
@@ -269,7 +254,7 @@ SCENES.spline = (() => {
         for (let j = -30; j <= 30; j++) { const ww = Math.exp(-(j * j) / 200); s += raw[(i + j + NB) % NB] * ww; w += ww; }
         Kq[i] = s / w;
       }
-      // body pen effort from U0 once round (slower through the tight turns of the tail and the hooks)
+      // body pen effort from U0 once round (slower through the tight turns)
       {
         const f = new Float64Array(NB);
         for (let i = 0; i < NB; i++) {
@@ -347,7 +332,7 @@ SCENES.spline = (() => {
             const x = CX - half + k * dSt;
             const g = outExpo(seg(t, 0.05 + Math.abs(k - 5) * 0.035, 0.75 + Math.abs(k - 5) * 0.035));
             const hl = 175 * S * g;
-            const near = smooth(Math.max(0, 1 - Math.abs(x - xc) / dSt));   // no cusp as the comb crosses a station
+            const near = smooth(Math.max(0, 1 - Math.abs(x - xc) / dSt));   // the station under the comb brightens
             line(TX(x), TY(CY - hl), TX(x), TY(CY + hl), a0 * (k % 5 === 0 ? 1.43 : 1) * (1 + 1.6 * near * near * combA));
           }
           for (let m = 0; m <= 6; m++) {
@@ -385,8 +370,7 @@ SCENES.spline = (() => {
         const aB = 0.5 * L * smooth(seg(t, 0.06, 0.45)) * (1 - smooth(seg(ex, 0, 0.25)));
         if (aB > 0.003) {
           const aInked = aB * (1 - 0.86 * smooth(seg(t, PEN_B[0], PEN_B[1] + 0.3)));
-          // never closer than 2.3 px: below S = 1 the two 1 px hairlines would merge into a beaded band
-          const hb = 1.15 * Math.max(1, S);
+          const hb = 1.15 * Math.max(1, S);   // never closer than 2.3 px, or the two hairlines bead
           const kPen = Math.min(NB, Math.floor(sB));
           const pa = new Path2D(), pb = new Path2D();
           for (const side of [1, -1]) {
@@ -409,7 +393,7 @@ SCENES.spline = (() => {
         const A = combA;
         if (A > 0.003) {
           const quills = new Path2D(), env = new Path2D();
-          // walk the window in u order from one edge to the other, so the envelope is one line across u = 0
+          // walk the window in u order, so the envelope is one line across u = 0
           const c0 = 2 * Math.round((combU * NB) / 2), K = 2 * Math.ceil((COMB_SPAN * NB) / 2);
           let first = true;
           for (let k = -K; k <= K; k += 2) {
@@ -529,7 +513,7 @@ SCENES.spline = (() => {
         const a = 0.36 * L * set * keep * (1 + 0.9 * w);
         if (a <= 0.003) continue;
         let ang = aG[j];
-        if (!isHead[j]) ang = aR[j] + wrapPI(aG[j] - aR[j]) * smooth(seg(t, Tb[i] - 0.02, Tb[i] + 0.55));
+        if (!isHead[j]) ang = aR[j] + wrapPi(aG[j] - aR[j]) * smooth(seg(t, Tb[i] - 0.02, Tb[i] + 0.55));
         ang += 0.06 * rock;
         const nx = Math.cos(ang), ny = Math.sin(ang);
         const off = (0.8 * w + 6 * lift) * S * sig;

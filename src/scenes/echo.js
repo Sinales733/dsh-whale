@@ -1,12 +1,10 @@
 // ===== scene: ECHO — a ring sonar on the seabed; the whale exists only as reflected sound ============
-// The sonar sits exactly where the boot spinner will be. Its active sector fires directional pings; where a
-// front crosses the whale the outline glints (brightest where it faces the sonar) and slowly fades, drifting
-// particles sparkle except in the whale's acoustic shadow, and the near specular part of each echo slides
-// back down the radials into the hub, which answers with a ripple round its staves. On exit the whole whale
-// is the last echo: it swells, dives down its radials and is taken in by the hub, whose staves answer and
-// fold away; the ring lights all round (listening), then dims back to the track and leaves the progress arc.
+// The sonar sits where the boot spinner will be. Its active sector fires pings; where a front crosses the whale the
+// outline glints and slowly fades, drifting particles sparkle except in the whale's acoustic shadow, and the near part
+// of each echo slides back down the radials into the hub, which answers with a ripple round its staves. On exit the
+// whole whale is the last echo: it swells, dives down its radials into the hub; the ring lights all round, then dims
+// back to the track and leaves the progress arc.
 SCENES.echo = (() => {
-  const DEG = Math.PI / 180;
   const N = 960, NST = 36, NP = 180, NBIN = 361, NB = 48, NG = 24, NF = 16;
   const BEAM = 36 * DEG, SIDE = 22 * DEG, SW0 = 72 * DEG, SW1 = 120 * DEG;
   const SCAN = 38 * DEG, SCAN_T = 6.4, PERIOD = 0.8;
@@ -23,7 +21,6 @@ SCENES.echo = (() => {
   let rngTxt = '---.-', pingNow = 0, brgNow = '000.0';
 
   const smoother = (k) => k * k * k * (k * (k * 6 - 15) + 10);
-  const wrapPi = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);
   const binOf = (b) => Math.max(0, Math.min(NBIN - 1, Math.round(b / DEG / 0.5) + 180));
   const pingT = (k) => (k < 3 ? P0[k] : P0[2] + PERIOD * (k - 2));
   function lastPingIdx(t) {
@@ -32,7 +29,7 @@ SCENES.echo = (() => {
     if (t < P0[2]) return 1;
     return 2 + Math.floor((t - P0[2]) / PERIOD);
   }
-  // beam axis, as a bearing (0 = straight up, positive = clockwise): centre, left, right, then a slow swing
+  // beam axis as a bearing (0 = up, positive = clockwise): centre, left, right, then a slow swing
   function steerAt(t) {
     if (t < 0.72) return 0;
     if (t < 1.12) return -SCAN * inOutSine(seg(t, 0.72, 1.12));
@@ -46,22 +43,20 @@ SCENES.echo = (() => {
     if (a < BEAM + SIDE) { const s = Math.sin((Math.PI * (a - BEAM)) / SIDE); return 0.14 * s * s; }
     return 0;
   }
-  // a front's light on the outline: a fast specular flash over a slow afterglow (×A, peak ≈ 0.85 at about 0.1 s
-  // once eased in; see the outline pass)
+  // a front's light on the outline: a fast specular flash over a slow afterglow
   const glint = (u) => 0.75 * Math.exp(-u / 0.16) + 0.5 * Math.exp(-u / 1.6);
   // a particle's sparkle behind a front: swells over 0.12 s, then fades
   const spark = (u) => (u <= 0 ? 0 : smooth(Math.min(1, u / 0.12)) * Math.exp(-u / 0.35));
-  // a swell with a rounded peak (zero slope at the start and at the top), normalised to peak at 1
+  // a swell with a rounded peak, normalised to peak at 1
   function mkPulse(rise, tau) {
     const f = (u) => (u <= 0 ? 0 : smooth(Math.min(1, u / rise)) * Math.exp(-u / tau));
     let m = 0;
     for (let k = 1; k <= 400; k++) m = Math.max(m, f((rise * k) / 400));
     return (u) => f(u) / m;
   }
-  const txPulse = mkPulse(0.13, 0.2);   // the hub transmitting: peaks as the front clears the staves
+  const txPulse = mkPulse(0.13, 0.2);   // the hub transmitting
   const rvPulse = mkPulse(0.14, 0.3);   // the hub hearing an echo
-  // a dive's progress: eases in over the first half, then runs at a constant rate (C2 at the joint), so in
-  // log radius every point keeps a constant ratio per frame until it is taken in
+  // a dive's progress: eases in over the first half, then runs at a constant rate (C2 at the joint)
   const diveQ = (s) => { if (s < 0.5) { const u = 2 * s; return (2 / 3) * u * u * u * (1 - u / 2); } return (s - 0.25) / 0.75; };
 
   function ghostOf(k, st) {
@@ -72,8 +67,7 @@ SCENES.echo = (() => {
       const a0 = beam(TH[i] - st) * AMP[i] * Math.pow(FACE[i], 1.5) * smooth(seg(N01[i], 0.55, 0.25));
       A0[i] = a0 * smooth(seg(a0, 0.08, 0.22));
     }
-    // blurred along the closed silhouette (±6 points, triangular), so a sliver stays one stroke with tapered
-    // ends instead of breaking at a concave corner into two marks
+    // blurred along the closed silhouette (±6 points, triangular), so a sliver stays one stroke with tapered ends
     const L = n0 - 1;   // the loop's last point repeats its first
     let far = 0, sw = 0, sd = 0, sth = 0;
     for (let i = 0; i < n0; i++) {
@@ -92,8 +86,7 @@ SCENES.echo = (() => {
   }
 
   // how deep (0..1) range r at bearing b lies in the whale's acoustic shadow (full `ramp` past its first surface),
-  // with a ±3° penumbra (triangular over the 0.5° bins), so a front grazing a flank fades along its arc and a
-  // drifting particle eases in and out of the shadow instead of being cut at the tangent bearing
+  // with a ±3° penumbra (triangular over the 0.5° bins)
   function shadow(r, b, ramp) {
     const c = binOf(b);
     let s = 0;
@@ -101,8 +94,8 @@ SCENES.echo = (() => {
     return s / 49;
   }
 
-  // evidence: the strongest hit each point has had, which sets its resting brightness. A hit counts once its
-  // light has fully risen (RISE after the front); until then the outline pass eases toward it
+  // evidence: the strongest hit each point has had, which sets its resting brightness; a hit counts once its light
+  // has fully risen (RISE after the front)
   function addEvidence(t, k) {
     const tk = pingT(k), st = steerAt(tk);
     for (let i = 0; i < N; i++) {
@@ -112,9 +105,8 @@ SCENES.echo = (() => {
     }
   }
 
-  // segment buckets: one stroke per alpha level; consecutive segments in a level continue one polyline.
-  // Butt ends with round joins: where two levels meet, their ends abut at the shared vertex instead of
-  // overlapping (round caps there would composite twice and leave a bright bead at every level change).
+  // segment buckets: one stroke per alpha level; consecutive segments in a level continue one polyline. Butt ends
+  // with round joins, so where two levels meet their ends abut instead of compositing twice.
   const mk = (n) => Array.from({ length: n }, () => []);
   function strokeB(bk, amax, wOf) {
     ctx.lineCap = 'butt';
@@ -173,8 +165,8 @@ SCENES.echo = (() => {
         TH[i] = Math.atan2(dx, -dy);
         dmin = Math.min(dmin, d); dmax = Math.max(dmax, d);
       }
-      // the dive's log-radius slope per point: a shared ratio toward the hub, keeping BETA of the squash a
-      // pure radial collapse would give (that turned the whale into a tulip, then a crown of radial hairs)
+      // the dive's log-radius slope per point: a shared ratio toward the hub, keeping BETA of the squash a pure
+      // radial collapse would give
       DM = 0.5 * (dmin + dmax);
       for (let i = 0; i < N; i++) {
         N01[i] = (D[i] - dmin) / (dmax - dmin);
@@ -226,14 +218,14 @@ SCENES.echo = (() => {
       }
       if (live.length) pingNow = live[live.length - 1].k + 1;
 
-      // ---- seabed: a hairline with a ground hatch and a range scale, drawn outward from the sonar over two
-      // faint sub-bottom strata; on exit it all retracts into the sonar
+      // ---- seabed: a hairline with a ground hatch and a range scale, drawn outward from the sonar over two faint
+      // sub-bottom strata; on exit it all retracts into the sonar
       {
         const ysb = hy + 32 * S;
         const half = 300 * S * inOutSine(seg(t, 0.1, 0.9)) * (1 - inOutCubic(seg(ex, 0, 0.5)));
         const a = 0.2 * (1 - smooth(seg(ex, 0.25, 0.5)));
         if (half > 1 && a > 0.003) {
-          // strata: static gentle undulations sampled at fixed x, so nothing crawls while they grow
+          // strata: static undulations sampled at fixed x, so nothing crawls while they grow
           const aS = 1 - smooth(seg(ex, 0.1, 0.4));
           for (let k = 0; k < 2; k++) {
             const hs = half * [0.9, 0.78][k], ak = [0.07, 0.045][k] * aS, yk = ysb + [34, 70][k] * S, ph = [0.7, 2.3][k];
@@ -266,9 +258,8 @@ SCENES.echo = (() => {
             }
             ctx.stroke();
           }
-          // range scale: a tick every 5 m (50S), taller every 10 m, labelled at 10 and 20 m. Each mark fades in
-          // over 0.3 s once the growing line has passed it (its label 0.05 s behind); on exit the whole scale
-          // fades out before the retracting line gets back to the outermost ticks (at ex ≈ 0.17)
+          // range scale: a tick every 5 m (50S), taller every 10 m, labelled at 10 and 20 m; each mark fades in over
+          // 0.3 s once the growing line has passed it, and the scale leaves at the start of the exit
           const aR = 1 - smooth(seg(ex, 0, 0.14));
           for (let m = 1; m <= 5; m++) {
             const x = 50 * S * m;
@@ -332,10 +323,8 @@ SCENES.echo = (() => {
       }
       strokeB(bF, 0.72 * LK, (k) => 1 + 0.4 * k);
 
-      // ---- whale outline: per-point glints over a resting floor that grows with the evidence
-      // A hit is eased in over RISE (zero slope at the start) from the point's resting level before it toward
-      // max(light, the resting level after it), so neither the flash nor the new level is switched on halfway up
-      // an attack; at RISE the hit joins the evidence and the two forms meet exactly
+      // ---- whale outline: per-point glints over a resting floor that grows with the evidence. A hit is eased in over
+      // RISE from the point's resting level toward max(light, the resting level after it); at RISE it joins the evidence
       for (const p of live) addEvidence(t, p.k);
       for (let i = 0; i < N; i++) {
         const br = 0.52 * (0.9 + 0.1 * Math.sin(t * 0.7 + i * 0.05));
@@ -379,12 +368,11 @@ SCENES.echo = (() => {
       }
       strokeB(bG, 0.42 * LK, () => 1);
 
-      // ---- the whale: in place while idle; on exit the last echo swells, dives down its radials and is taken
-      // in by the hub before it reaches the staves
+      // ---- the whale: in place while idle; on exit the last echo swells, dives down its radials and is taken in by
+      // the hub before it reaches the staves
       {
         const WA = light ? 1 : 0.95;
-        // the whole whale also fades as one piece once it is small (its mid-range scale 0.3 → 0.08, ex ≈ 0.41–0.58),
-        // so its back and tail never linger above the hub as a fragment after the belly has been taken in
+        // the whole whale also fades as one piece once it is small, so its back and tail never linger as a fragment
         const fW = ex > 0 ? smooth(seg(Math.exp(diveQ(seg(ex, 0.09, 0.09 + DIVE)) * Math.log((3 * S) / DM)), 0.08, 0.3)) : 1;
         let pa = -1, pxp = 0, pyp = 0;
         for (let i = 0; i < N; i++) {
@@ -442,13 +430,11 @@ SCENES.echo = (() => {
           const ca = be - Math.PI / 2;
           if (len > 0.05) line(hx + Math.cos(ca) * sIn, hy + Math.sin(ca) * sIn, hx + Math.cos(ca) * (sIn + len), hy + Math.sin(ca) * (sIn + len), a);
         }
-        // the active sector: on exit it opens round the whole ring (listening for the last echo); then the lit
-        // ring dims back to the track under the spinner arc's head, which brightens into the progress arc, so
-        // nothing on the ring ever moves faster than the spinner
+        // the active sector: on exit it opens round the whole ring (listening); then the lit ring dims back to the
+        // track under the spinner arc's head, which brightens into the progress arc
         const secW = lerp(1.4, 2, smooth(seg(ex, 0.3, 0.8)));
         if (ex < 0.42) {
-          // opening: the whole ring lights up beneath the sector, which widens a little and melts into it, so no
-          // edge sweeps round faster than the steer; at kOpen 1 it is the same full ring the close starts from
+          // opening: the whole ring lights up beneath the sector, which widens a little and melts into it
           const kOpen = smoother(seg(ex, 0.06, 0.4));
           const aU = 0.7 * kOpen;
           if (aU > 0.003) {
@@ -467,7 +453,7 @@ SCENES.echo = (() => {
             ctx.lineWidth = secW;
             ctx.beginPath(); ctx.arc(hx, hy, ringR, 0, TAU); ctx.closePath(); ctx.stroke();
           }
-          // the head on top, so the two together read aH there: the ring alone at kClose 0, the arc alone at 1
+          // the head on top, so the two together read aH there
           arc(hx, hy, ringR, spinnerAngle(t), spinnerSweep(), 1 - (1 - aH) / Math.max(1e-3, 1 - aU), secW);
         }
       }

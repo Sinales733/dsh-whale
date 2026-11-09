@@ -1,7 +1,6 @@
 // ===== scene: CURRENT — a flow field streaming around the whale ==================================
-// The whale is never drawn up front: it is the obstacle the current bends around, read as the
-// negative space between streamlines, echoed by pulsing isobars. On exit the stream winds into a
-// vortex that settles onto the spinner track.
+// The whale is the obstacle the current bends around, read as the negative space between streamlines and echoed by
+// pulsing isobars. On exit the stream winds into a vortex that settles onto the spinner track.
 SCENES.current = (() => {
   const NP = 950;          // tracer particles
   const TRAIL = 14;        // positions kept per tracer
@@ -12,7 +11,6 @@ SCENES.current = (() => {
   const px = new Float32Array(NP), py = new Float32Array(NP);
   const hist = new Float32Array(NP * TRAIL * 2);
   const head = new Int32Array(NP), filled = new Int32Array(NP);
-  const ang0 = new Float32Array(NP);
   let exitCaptured = false, lastT = 0, reynolds = 0, r0 = 0;
 
   function spawn(i, anywhere) {
@@ -26,9 +24,8 @@ SCENES.current = (() => {
     filled[i] = 0;
   }
 
-  // velocity at (x, y): uniform stream + gentle swell, deflected around the whale
-  // Slip boundary: near the hull the component of the stream heading into it is removed, so
-  // streamlines slide along the isobars and close up again behind the whale.
+  // velocity at (x, y): uniform stream + gentle swell, deflected around the whale (slip boundary: the component
+  // heading into the hull is removed, so streamlines slide along the isobars and close up behind)
   function field(x, y, t, out) {
     const h = 3 * S;
     const b = blurField(x, y);
@@ -43,8 +40,7 @@ SCENES.current = (() => {
       const w = smooth(clamp01(b / 0.42));
       if (into > 0) { ux -= nx * into * w; uy -= ny * into * w; }
       else { ux -= nx * into * w * 1.05; uy -= ny * into * w * 1.05; } // rear: hug the hull and close up
-      // squeeze speeds the flow up along the flanks, like a real streamline bundle
-      const boost = 1 + 0.55 * w;
+      const boost = 1 + 0.55 * w;                // squeeze speeds the flow up along the flanks
       ux *= boost; uy *= boost;
       if (b > 0.45) { ux -= nx * speed * 1.4 * (b - 0.45) * 4; uy -= ny * speed * 1.4 * (b - 0.45) * 4; }
     }
@@ -170,7 +166,7 @@ SCENES.current = (() => {
       if (exiting && !exitCaptured) {
         exitCaptured = true;
         r0 = 0;
-        for (let i = 0; i < NP; i++) { ang0[i] = Math.atan2(py[i] - HY, px[i] - HX); r0 += Math.hypot(px[i] - HX, py[i] - HY) / NP; }
+        for (let i = 0; i < NP; i++) r0 += Math.hypot(px[i] - HX, py[i] - HY) / NP;
       }
       // the stream bends into the vortex over the first third of the exit instead of turning on the spot
       const bend = exiting ? smooth(seg(ex, 0, 0.32)) : 0;
@@ -208,11 +204,9 @@ SCENES.current = (() => {
 
       // ---- draw trails (bright head, faint tail) in two batches
       {
-        // as the vortex tightens the same trails pile into a smaller disc: thin them out with it, so it never
-        // turns into a solid white mass
+        // as the vortex tightens the trails pile into a smaller disc: thin them out with it
         const dense = exiting ? Math.min(1, Math.max(0.16, (1.4 * rSum) / NP / (r0 || 1))) : 1;
-        // while the stream turns, only the newest few positions are drawn, so no trail shows the turn as a
-        // corner or a hook; the trails grow back once the vortex has formed
+        // while the stream turns only the newest few positions are drawn (no hooks); the trails grow back after
         const len = exiting ? Math.round(lerp(lerp(TRAIL, 8, seg(ex, 0, 0.1)), TRAIL, seg(ex, 0.3, 0.5))) : TRAIL;
         const base = (light ? 0.5 : 0.42) * emit * dense * Math.sqrt(TRAIL / len) * (1 - seg(ex, 0.72, 1));
         if (base > 0.003) {

@@ -1,21 +1,18 @@
 // ===== scene: SHADOW — a wire sculpture on a turntable: from the front the whale, from the side a circle ====
-// The whale outline is lifted onto a horizontal cylinder (z = ±√(R² − y²)): its front projection is the glyph,
-// its side projection one circle. A ring lifts off the turntable, eases into the wire's lowest point and prints the
-// wire bottom-up (fresh wire condenses in just below the ring) while the turntable coasts in from −150° and the
-// camera descends; at 0° the wire is the whale. On exit the inner details fade and the turntable turns on to +90°:
-// the outline turns edge-on into the circle, which shrinks onto the spinner track, and one of the two bands of light
-// running round the cylinder axis spins up into the spinner's progress arc.
-// PROTOTYPE for the spec (scratchpad only).
+// The whale outline is lifted onto a horizontal cylinder (z = ±√(R² − y²)): its front projection is the glyph, its
+// side projection one circle. A ring lifts off the turntable and prints the wire bottom-up while the turntable coasts
+// in from −150° and the camera descends; at 0° the wire is the whale. On exit the details fade and the turntable turns
+// on to +90°: the outline turns edge-on into the circle, which shrinks onto the spinner track, and one of two bands of
+// light running round the cylinder axis spins up into the spinner's progress arc.
 SCENES.shadow = (() => {
   const N = 900, NB = 10, Q = 10;
   // wire groups inside each depth bin: 0 solid, 1..NL−1 the print's soft front (alpha l/NL), NL the details fading out
   const NL = 8, G = NL + 1, NGL = 6;
-  const DEG = Math.PI / 180;
   const PSI0 = -150 * DEG, PITCH0 = 24 * DEG, PITCH_REST = 1.6 * DEG, T_COAST = 2.8;
   const XD = 1.1, TURN = 0.5, SWAP = 0.5;
   const W_I = TAU / 4.8, W_S = TAU / 0.8;
   // exit spin-up of the bands: a ramp of length L_UP from 75 to 450°/s whose start (A0..A1) is chosen on the first
-  // exit frame so that one of the two bands arrives exactly on the spinner's arc; the lock then only absorbs drift
+  // exit frame so that one band arrives exactly on the spinner's arc; the lock then only absorbs drift
   const K_UP = (W_S - W_I) * XD, L_UP = 0.3, A0 = 0.04, A1 = 0.48, LOCK = 0.86;
   const WIRE_W = 1.1, HALO_W = 3.6, TRIM = 0.5;
   const A_W = light ? 0.66 : 0.6, BACK = 0.3, S_REST = 0.25, MEET = 0.65;
@@ -30,8 +27,7 @@ SCENES.shadow = (() => {
   let psiNow = 0, phiNow = 0, prNow = 0;
   let spinU = 0, lastSpin = 0, lock = null;
 
-  const E = (u) => 1 - Math.pow(1 - u, 3) * (1 + 1.5 * u);   // coast: v(0) = 1.5, peak 1.74 at u = 1/6, lands with v = a = 0
-  const wrapPi = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);
+  const E = (u) => 1 - Math.pow(1 - u, 3) * (1 + 1.5 * u);   // coast: lands with v = a = 0
   // ∫₀ˣ smooth(seg(e, a, a + L_UP)) de: how far the spin-up has carried a band beyond its idle pace
   const upInt = (x, a) => {
     if (x <= a) return 0;
@@ -48,7 +44,7 @@ SCENES.shadow = (() => {
     return lerp(PITCH0, PITCH_REST + 0.5 * DEG * Math.sin(0.83 * t + 1.1), E(seg(t, 0, 2.6)));
   }
   // depth-shading strength: full in the tangle and while the camera is high, a residue at the front view, none at
-  // the level side view (where every strand lies on one circle)
+  // the level side view
   function shade(psi, phi) {
     const s2 = Math.sin(2 * psi) ** 2, c4 = Math.cos(psi) ** 4;
     return Math.min(1, s2 + S_REST * c4 * (1 - s2) + smooth(seg(phi, 3 * DEG, 12 * DEG)));
@@ -57,11 +53,8 @@ SCENES.shadow = (() => {
   function planeY(t) {
     return YT - (YT - R - 2 * S) * smooth(seg(t, 0.35, 0.74)) - (2 * R + 16 * S) * inOutSine(seg(t, 0.7, 1.45));
   }
-  // nozzle dot at a cut of segment i: it fades with how far the plane is from the two ends of the monotone stretch the
-  // cut lies on: the bottom its printed side runs down to and the top its open side climbs to. A new piece is born at a
-  // bottom and two cut ends merge at a top, so a dot grows out of every new piece and is gone before its cut meets
-  // another; and as those ends are fixed points of the wire, a piece being born or merging elsewhere changes no dot
-  // (a fade by the printed run's full extent jumped whenever a neighbouring piece was born or merged)
+  // nozzle dot at a cut of segment i: fades with the plane's distance from the two ends of the monotone stretch the
+  // cut lies on, so a dot grows out of every new piece and is gone before its cut meets another
   function tipFade(i, yP) {
     const fwd = Y[i + 1] >= yP;                  // the printed side lies ahead of the cut
     const dep = fwd ? lowF[i + 1] - yP : lowB[i] - yP, gap = fwd ? yP - highB[i] : yP - highF[i + 1];
@@ -104,9 +97,8 @@ SCENES.shadow = (() => {
       for (let k = 1; k < subs.length; k++) for (let i = subs[k].s; i < subs[k].e; i++) Z[i] = SIGNS[k] * zr(i);
       DMAX = 0;
       for (let i = 0; i < N; i++) { B[i] = Math.atan2(Y[i], Z[i]); DMAX = Math.max(DMAX, Math.hypot(X[i], Z[i])); }
-      // for every point, walking forward and backward round its loop: the y of the lowest point on screen reached while
-      // the wire keeps falling (low*, largest y) and of the highest reached while it keeps rising (high*, smallest y);
-      // a closed loop's last point repeats its first
+      // per point, walking forward and backward round its loop: the y reached while the wire keeps falling (low*) and
+      // while it keeps rising (high*); a closed loop's last point repeats its first
       lowF = new Float32Array(N); lowB = new Float32Array(N); highF = new Float32Array(N); highB = new Float32Array(N);
       for (const { s, e, closed } of subs) {
         const n = closed ? e - 1 - s : e - s, at = (j) => s + (((j % n) + n) % n);
@@ -126,8 +118,8 @@ SCENES.shadow = (() => {
         if (closed) { lowF[e - 1] = lowF[s]; lowB[e - 1] = lowB[s]; highF[e - 1] = highF[s]; highB[e - 1] = highB[s]; }
       }
       RT = 186 * S; YT = R + 58 * S; RIM = 9 * S; HF = 28 * S;
-      // dial and gizmo labels, rendered once: drawn as images they slide by sub-pixel steps (canvas text snaps to whole
-      // pixels, so moving text hops a pixel at a time); cells 0–11 hold 000…330, cells 12–14 X, Y, Z
+      // dial and gizmo labels, rendered once (drawn as images they move by sub-pixel steps): cells 0–11 hold
+      // 000…330, cells 12–14 X, Y, Z
       labels = document.createElement('canvas');
       labels.width = Math.ceil(LW * 15 * DPR); labels.height = Math.ceil(LH * DPR);
       const g = labels.getContext('2d');
@@ -153,7 +145,7 @@ SCENES.shadow = (() => {
       const cps = Math.cos(psi), sps = Math.sin(psi), cph = Math.cos(phi), sph = Math.sin(phi);
       const PW = (x, y, z) => [cx + sc * x, cy + sc * (y * cph + z * sph), -y * sph + z * cph];
       // a world-fixed horizontal circle of radius rr at height yy, drawn out from the front (a = 0) to ±span on a fixed
-      // grid of angles plus exact end points; the grid holds ±π/2, so the front/back split is exact and nothing slides
+      // grid of angles plus exact end points (the grid holds ±π/2, so the front/back split is exact)
       const circle = (rr, yy, span, yLow) => {
         const front = new Path2D(), back = new Path2D(), lower = yLow === undefined ? null : new Path2D();
         if (span > 1e-4) {
@@ -247,7 +239,7 @@ SCENES.shadow = (() => {
             const gx = CX - 262 * S, gy = CY + 150 * S, L = 20 * S * gz;
             const axes = [[12, cps, -sps * sph, -sps * cph], [13, 0, -cph, sph], [14, sps, cps * sph, cps * cph]];
             for (const [cell, ux, uy, d] of axes) {
-              // brightness follows the axis depth continuously; a label fades as its axis turns end-on
+              // brightness follows the axis depth; a label fades as its axis turns end-on
               const a = lerp(0.22, 0.5, smooth(clamp01(0.5 + d / 0.3))) * gz;
               line(gx, gy, gx + ux * L, gy + uy * L, a);
               const la = a * 0.9 * smooth(clamp01(Math.hypot(ux, uy) / 0.35));
@@ -271,7 +263,7 @@ SCENES.shadow = (() => {
         sd[i] = clamp01(((-y * sph + z1 * cph) / DMAX + 1) / 2);
       }
 
-      // ---- two bands of light running round the cylinder axis: pure functions of t and ex, no clock state
+      // ---- two bands of light running round the cylinder axis: pure functions of t and ex
       let hFree = W_I * t;
       const bandA = [1, 1].map(() => smooth(seg(t, 2.3, 3.1)));
       if (exiting) {
@@ -299,7 +291,7 @@ SCENES.shadow = (() => {
       const blen = lerp(LEN_I, spinnerSweep(), smooth(seg(ex, 0.5, 0.86)));
       const kSolid = smooth(seg(ex, 0.55, 0.86));
       // the lit pieces of segment i (parameter range f0..f1), clipped at the exact head and tail angles; a band rises
-      // over its first 22 % (a soft attack: a level stretch of wire, all at one β, brightens over ~0.1 s, not at once)
+      // over its first 22 % (soft attack)
       const bandSeg = (i, f0, f1, mlt, emit) => {
         const d = wrapPi(B[i + 1] - B[i]);
         for (let j = 0; j < 2; j++) {
@@ -318,9 +310,8 @@ SCENES.shadow = (() => {
         }
       };
 
-      // In the exit the depth fog is held through the turn (no dim-then-flare). As the strands close in, near and far
-      // meet at one level (the near side dims as much as the far side brightens, so the ink keeps falling); from then
-      // on every bin has the same alpha and the wire is drawn as one union, with no halo stubs where strands overlap.
+      // In the exit the depth fog is held through the turn. As the strands close in, near and far meet at one level;
+      // from then on every bin has the same alpha and the wire is drawn as one union (no halo stubs where strands overlap).
       const s = exiting ? Math.max(shade(psi, phi), smooth(seg(ex, 0.04, 0.2))) : shade(psi, phi);
       const meet = smooth(seg(ex, 0.3, 0.42)), union = meet >= 1;
       const level = lerp(MEET, 1, smooth(seg(ex, 0.5, 0.8)));
@@ -342,7 +333,7 @@ SCENES.shadow = (() => {
         const tips = [];
         const path = (arr, k) => arr[k] || (arr[k] = new Path2D());
         // one run of segments in one bin and group: the wire whole; its halo trimmed by TRIM px at each open end, so a
-        // bin boundary never erases the end of the neighbouring run of the same strand, yet the run is covered to its ends
+        // bin boundary never erases the end of the neighbouring run of the same strand
         const emit = (run, key, closed) => {
           const p = path(fg, key);
           p.moveTo(run[0][0], run[0][1]);
@@ -403,8 +394,7 @@ SCENES.shadow = (() => {
               const fw = smooth(clamp01(h / HF));
               const lg = Math.round(fw * (1 - smooth(seg(h, 20 * S, 46 * S))) * NGL);
               if (lg > 0) { const p = path(glow, lg); p.moveTo(x1, y1); p.lineTo(x2, y2); }
-              // the plane stops 14S above the wire, still half way through the soft front: the front settles in with
-              // the glow, so the wire is solid when the print ends (else its top doubled in brightness at 1.45 s)
+              // the plane stops 14S above the wire: the front settles in with the glow, so the wire is solid when the print ends
               const l = Math.round((1 - (1 - fw) * ga) * NL);
               if (l === 0) { flush(); continue; }
               if (l < NL) g = l;

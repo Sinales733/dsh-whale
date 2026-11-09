@@ -12,12 +12,12 @@ let t0 = 0;
 let exitAt = -1;
 let exitResolve = null;
 const EXIT_DUR = scene.exitDur || 1.05;
-// The boot card's text fades in only once the scene has collapsed onto the spinner ring (so nothing of
-// the scene runs through it), and the exit is over when the text is fully in (its CSS transitions: CARD_IN).
+// The boot card's text fades in once the scene has collapsed onto the ring (CARD_AT); the exit is over when the
+// text is fully in (its CSS transitions: CARD_IN).
 const CARD_AT = 0.8, CARD_IN = 0.42;
 let cardAt = -1;
-// A scene that brings the spinner's arc in itself (scene.spinnerIn: exit progress where it lands) draws that
-// arc through ex 1 and boot draws none; the DOM spinner only takes over from spinnerIn, so there are never two.
+// A scene with spinnerIn draws the spinner's arc itself through ex 1; boot draws none, and the DOM spinner
+// only takes over from spinnerIn, so there are never two.
 const SPIN_IN = scene.spinnerIn || 0;
 
 function tickHud(t) {
@@ -47,7 +47,7 @@ function frame(now) {
     // the converged ring cross-fades into a DOM spinner that carries the main window's own CSS
     canvas.style.opacity = String(1 - seg(ex, Math.max(0.86, SPIN_IN), 0.99));
     spinEl.style.opacity = String(seg(ex, Math.max(0.78, SPIN_IN), 0.97));
-  } else if (!SPIN_IN) drawSpinnerHead(t, ex, 0.55);   // a spinnerIn scene draws the arc itself through ex 1
+  } else if (!SPIN_IN) drawSpinnerHead(t, ex);
 
   if (!titleShown && t > (scene.titleAt || 1.95) && !exiting) showTitle();
   if (titleShown) tickStatus(t);
@@ -61,10 +61,9 @@ function frame(now) {
 }
 
 // ---------------------------------------------------------------- exact hand-off
-// The main process measures the web app's boot card in the freshly shown main window (positions,
-// computed fonts and colours, spinner geometry, its progress arc and rotation phase) and passes the
-// record here. The splash then converges onto those exact coordinates and finishes on a replica
-// built from the same computed CSS, so the final window fade swaps identical pixels.
+// The main process measures the web app's boot card in the main window (positions, computed fonts and colours,
+// spinner geometry, arc and rotation phase). The splash converges onto those coordinates and finishes on a
+// replica built from the same computed CSS, so the window fade swaps identical pixels.
 const wordEl = handoff.querySelector('.wordmark');
 const hintEl = handoff.querySelector('.hint');
 const spinEl = document.getElementById('handoff-spin');
@@ -117,15 +116,15 @@ function beginExit(spec, resolve) {
   exiting = true;
   applySpec(spec);
   exitAt = (performance.now() - t0) / 1000;
-  window.__dshExitAt = exitAt;   // read by the preview lab (preview/lab.html)
+  window.__dshExitAt = exitAt;   // read by preview/lab.html
   exitResolve = resolve;
   titleBox.classList.add('out');
   hud.classList.add('out');
 }
 
 let exitRequested = false;
-// Main process: `await __dshSplashExit(record)` → the scene converges; then `__dshSplashSync(record)`
-// refreshes the progress arc and phase just before the window fades.
+// Main process: `await __dshSplashExit(record)` → the scene converges; `__dshSplashSync(record)` refreshes the
+// arc and phase just before the window fades.
 window.__dshSplashExit = (spec) => new Promise((resolve) => {
   if (exitRequested) return resolve();
   exitRequested = true;

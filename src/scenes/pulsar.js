@@ -1,6 +1,6 @@
 // ===== scene: PULSAR — stacked ridgelines (after PSR B1919+21) with the whale embossed ===========
-// Rows are painted back to front, each occluding the ones behind it. On exit the plot lies down into a
-// skyline at the spinner's height, settles into one line, and curls into the spinner's progress arc.
+// Rows are painted back to front, each occluding the ones behind it. On exit the plot lies down into a skyline at
+// the spinner's height, settles into one line, and curls into the spinner's progress arc.
 SCENES.pulsar = (() => {
   const NR = 52, NP = 150;
   let top = 0, span = 0, half = 0, mask = null;
@@ -25,15 +25,14 @@ SCENES.pulsar = (() => {
   return {
     label: 'PULSAR',
     readyAt: 3.3,
-    spinnerIn: 0.89,   // its line becomes the spinner's arc: the real one waits until it has landed
+    spinnerIn: 0.89,   // its line becomes the spinner's arc
     titleAt: 2.0,
     layout() {
       headTo = null;
       span = 384 * S;
       top = CY - span / 2 + 8 * S;
       half = 300 * S;
-      // The lift raises every row inside the glyph, which adds to its apparent height; widen the
-      // mask to keep the embossed whale at its true proportions.
+      // the lift raises every row inside the glyph, adding to its apparent height; widen the mask to compensate
       const wh = makeWhale(CX, CY + 10 * S, 226 * S);
       const wide = new Path2D();
       wide.addPath(wh.fill, new DOMMatrix().translateSelf(CX, 0).scaleSelf(1.16, 1).translateSelf(-CX, 0));
@@ -44,25 +43,16 @@ SCENES.pulsar = (() => {
       const breathe = 0.86 + 0.14 * Math.sin(t * 1.5);
       scanRow = ((t - 1.2) * 11) % (NR + 24) - 12;
 
-      // Exit, in three moves. The plot is a height map: each row a profile across the ground, the rows
-      // further back drawn higher up the screen.
-      //  1. it lies down: the eye drops to the ground, so every row comes down onto one horizon at the
-      //     spinner's height, the far ones smaller (perspective), and the relief stands up from it as a
-      //     skyline, the near rows hiding the far ones except where those are higher;
-      //  2. the relief settles until the skyline is one line;
-      //  3. the line draws in and curls until it is the spinner's own progress arc, on the track and
-      //     turning with it (where the measured spinner then takes over).
+      // Exit, in three overlapping moves: 1. the plot lies down (kL): every row comes down onto one horizon at the
+      // spinner's height, the far ones smaller, the relief standing up from it as a skyline; 2. the relief settles
+      // (kF) while the far rows fade (kD); 3. the front row draws in and curls (kb) into the spinner's progress arc.
       const FRONT = NR - 1;
       const kL = inOutCubic(seg(ex, 0, 0.36));
-      // the relief starts settling as the lie-down slows, and keeps settling into the curl (it rides on the
-      // curling line), so no move starts from or ends in a standstill
       const kF = inOutSine(seg(ex, 0.3, 0.7));
-      // the far rows fade out while the relief is still settling; gone before the curl takes the front row
       const kD = smooth(seg(ex, 0.36, 0.56));
       const kb = inOutCubic(seg(ex, 0.56, 0.89));
       const yp = HY;
-      // x and height scale of a row (depth 0 back … 1 front) against the standing plot: lying down, the
-      // back row ends up 0.42 of the front row's width
+      // x and height scale of a row (depth 0 back … 1 front): lying down, the back row ends up 0.42 of the front's width
       const rowScale = (d) => lerp(1, (0.42 + 0.58 * d) / (0.8 + 0.2 * d), kL);
       // a point on the ground of the standing plot (the axes)
       const G = (x, y) => [CX + (x - CX) * rowScale(clamp01((y - top) / span)), lerp(y, yp, kL)];
@@ -91,9 +81,8 @@ SCENES.pulsar = (() => {
         }
       }
 
-      // move 2: the front row as a curve of constant curvature, from the straight line it lies in to the
-      // spinner's arc: its middle, heading, curvature and length all travel there together. The heading
-      // follows the spinner's turn without wrapping, so the curl never flips.
+      // move 3: the front row as a curve of constant curvature, from the straight line it lies in to the spinner's
+      // arc: middle, heading, curvature and length travel together. The heading follows the spinner without wrapping.
       let curl = null, curlW = 1;
       if (exiting && kb > 0) {
         const a0 = spinnerAngle(t), sw = spinnerSweep(), thc = a0 + sw / 2;
@@ -101,12 +90,11 @@ SCENES.pulsar = (() => {
         headTo += ((((a0 - lastA + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
         lastA = a0;
         const mx = lerp(CX, HX + Math.cos(thc) * SPIN_R, kb), my = lerp(yp, HY + Math.sin(thc) * SPIN_R, kb);
-        // length shrinks by the same ratio every frame (log scale), and the curve turns through a growing
-        // share of the arc's sweep, so neither jumps; it stays level while long and turns once it is short
+        // length shrinks in log scale; the curve turns through a growing share of the arc's sweep
         const len = Math.exp(lerp(Math.log(2 * half), Math.log(sw * SPIN_R), inOutSine(seg(ex, 0.56, 0.89))));
         const psi = headTo * kb * kb * kb, kap = (sw * smooth(kb)) / len;
         curlW = lerp(1, 2, smooth(seg(kb, 0.3, 1)));
-        // returns the point at u and the line's heading there; what is left of the relief stands on its normal
+        // the point at u and the line's heading there; what is left of the relief stands on its normal
         curl = (u) => {
           const s = (u * len) / 2;
           if (kap < 1e-5) return [mx + Math.cos(psi) * s, my + Math.sin(psi) * s, psi];
@@ -118,8 +106,7 @@ SCENES.pulsar = (() => {
       // ridgelines, back (top) to front (bottom)
       const xs = new Float32Array(NP), ys = new Float32Array(NP), ms = new Float32Array(NP);
       const bx = new Float32Array(NP), by = new Float32Array(NP);   // the row's baseline, for its fill
-      // the occluding fills go once the far rows have gone (they hide nothing after that); the fill is opaque
-      // paint on the canvas, so it fades rather than stops
+      // the occluding fills go once the far rows have gone; they are opaque paint on the canvas, so they fade
       const fillA = 1 - smooth(seg(ex, 0.5, 0.68));
       ctx.lineJoin = 'round';
       for (let r = 0; r < NR; r++) {
@@ -131,12 +118,11 @@ SCENES.pulsar = (() => {
         const amp = outCubic(seg(t, 0.9 + (NR - 1 - r) * 0.016, 1.6 + (NR - 1 - r) * 0.016)) * 30 * S;
         const liftK = smooth(seg(t, 1.6 + r * 0.013, 2.4 + r * 0.013));
         const lift = liftK * 27 * S * breathe;
-        // once the relief has settled all the rows are in the one line: the front row takes over their light
         const scan = Math.exp(-(((r - scanRow) / 1.6) ** 2)) * seg(t, 1.2, 1.6) * (1 - kL);
         let a = (0.32 + 0.5 * depth + 0.45 * scan) * (light ? 0.95 : 1);
         if (r === FRONT) a = lerp(a, 1, smooth(seg(ex, 0.36, 0.62)));
         else a *= 1 - kD;
-        // seen from the ground the relief stands taller than from above (heights are no longer foreshortened)
+        // seen from the ground the relief stands taller than from above
         const k = rowScale(depth), base = lerp(baseY, yp, kL), hk = k * lerp(1, 1.9, kL) * (1 - kF);
         if (a <= 0.003 && fillA <= 0.003) continue;
         const curling = r === FRONT && curl;
@@ -193,7 +179,7 @@ SCENES.pulsar = (() => {
         }
       }
       ctx.lineJoin = 'miter';
-      // the spinner track comes up under the arriving arc (not before: the line runs through it)
+      // the spinner track comes up under the arriving arc
       if (exiting) arc(HX, HY, SPIN_R, 0, TAU, RING_ALPHA * smooth(seg(ex, 0.74, 0.89)), 2);
     },
   };

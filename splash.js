@@ -2,11 +2,9 @@
 (() => {
 'use strict';
 // ===== core: shared environment for every launch scene =====================================
-// A scene is { label, layout(), frame(t, ex, ek), readout(t)?, titleAt?, exitDur? }.
-//   t  — seconds since the splash started
-//   ex — exit progress 0→1 (0 while idle), ek — eased exit progress
-// Contract: at ex = 1 a scene must leave exactly one ring of radius SPIN_R, alpha RING_ALPHA,
-// width 2 at (HX, HY) — the web app's boot spinner track — and nothing else.
+// A scene is { label, readyAt, layout(), frame(t, ex, ek), readout(t)?, titleAt?, exitDur?, spinnerIn? }.
+// t: seconds since start; ex: exit progress 0→1 (0 while idle); ek = inOutCubic(ex).
+// Contract: at ex = 1 a scene leaves exactly one ring of radius SPIN_R, alpha RING_ALPHA, width 2 at (HX, HY).
 
 const WHALE_PATH = 'M168.384 12.9517C168.138 12.8317 168.033 13.0607 167.889 13.1767C167.84 13.2142 167.799 13.2632 167.757 13.3082C167.399 13.6912 166.98 13.9427 166.433 13.9127C165.632 13.8677 164.949 14.1192 164.345 14.7312C164.217 13.9767 163.79 13.5262 163.141 13.2372C162.802 13.0872 162.458 12.9367 162.22 12.6102C162.054 12.3776 162.009 12.1186 161.926 11.8631C161.873 11.7091 161.82 11.5516 161.643 11.5251C161.45 11.4951 161.375 11.6566 161.299 11.7916C160.997 12.3436 160.88 12.9517 160.892 13.5677C160.918 14.9532 161.503 16.0568 162.666 16.8418C162.798 16.9318 162.832 17.0218 162.79 17.1533C162.711 17.4238 162.617 17.6863 162.534 17.9568C162.481 18.1293 162.402 18.1673 162.217 18.0918C161.579 17.8253 161.028 17.4308 160.541 16.9543C159.714 16.1548 158.967 15.2722 158.035 14.5812C157.816 14.4197 157.597 14.2697 157.37 14.1267C156.419 13.2032 157.495 12.4446 157.744 12.3546C158.004 12.2606 157.834 11.9376 156.993 11.9416C156.151 11.9451 155.381 12.2271 154.4 12.6027C154.256 12.6592 154.105 12.7002 153.951 12.7342C153.06 12.5652 152.135 12.5277 151.169 12.6367C149.35 12.8392 147.897 13.6992 146.829 15.1672C145.546 16.9318 145.244 18.9368 145.613 21.0279C146.002 23.232 147.127 25.0565 148.855 26.4831C150.648 27.9621 152.713 28.6871 155.068 28.5481C156.499 28.4656 158.091 28.2741 159.888 26.7536C160.341 26.9791 160.816 27.0691 161.605 27.1366C162.212 27.1931 162.797 27.1066 163.25 27.0126C163.96 26.8626 163.911 26.2056 163.654 26.0851C161.575 25.1165 162.031 25.5105 161.616 25.1915C162.673 23.9415 164.287 21.7194 164.785 18.6938C164.834 18.3598 164.896 17.8893 164.889 17.6188C164.885 17.4538 164.923 17.3898 165.111 17.3708C165.632 17.3108 166.138 17.1683 166.603 16.9128C167.95 16.1768 168.494 14.9677 168.622 13.5187C168.641 13.2972 168.618 13.0682 168.384 12.9517ZM156.642 25.9951C154.626 24.4105 153.649 23.889 153.245 23.9115C152.868 23.934 152.936 24.366 153.019 24.6475C153.106 24.9255 153.219 25.117 153.377 25.361C153.487 25.5225 153.562 25.7625 153.268 25.9431C152.619 26.3446 151.49 25.808 151.437 25.7815C150.124 25.008 149.025 23.987 148.251 22.5905C147.504 21.2464 147.07 19.8044 146.998 18.2653C146.979 17.8938 147.089 17.7623 147.459 17.6948C147.946 17.6048 148.448 17.5858 148.934 17.6573C150.992 17.9578 152.743 18.8773 154.211 20.3344C155.049 21.1639 155.683 22.1554 156.336 23.124C157.03 24.1525 157.777 25.1325 158.729 25.9361C159.065 26.2176 159.333 26.4316 159.589 26.5896C158.816 26.6761 157.525 26.6946 156.642 25.9961V25.9951ZM157.608 19.7814C157.608 19.6164 157.74 19.4849 157.906 19.4849C157.943 19.4849 157.977 19.4924 158.008 19.5034C158.049 19.5184 158.087 19.5409 158.117 19.5749C158.17 19.6274 158.2 19.7024 158.2 19.7814C158.2 19.9464 158.068 20.0779 157.902 20.0779C157.736 20.0779 157.608 19.9464 157.608 19.7814ZM160.608 21.3204C160.416 21.3994 160.223 21.4669 160.038 21.4744C159.751 21.4894 159.438 21.3729 159.268 21.2304C159.004 21.0089 158.815 20.8849 158.736 20.4984C158.702 20.3334 158.721 20.0779 158.751 19.9314C158.819 19.6159 158.744 19.4134 158.521 19.2294C158.34 19.0793 158.11 19.0378 157.857 19.0378C157.762 19.0378 157.676 18.9963 157.611 18.9628C157.506 18.9103 157.419 18.7788 157.502 18.6173C157.528 18.5648 157.657 18.4373 157.687 18.4148C158.03 18.2193 158.426 18.2833 158.793 18.4298C159.132 18.5688 159.389 18.8238 159.759 19.1844C160.136 19.6199 160.204 19.7399 160.419 20.0669C160.589 20.3224 160.744 20.5849 160.85 20.8854C160.914 21.0729 160.831 21.2264 160.608 21.3204Z';
 const WB = { x: 145.4, y: 11.5, w: 23.3, h: 17.1 }; // glyph bbox in source SVG units
@@ -20,8 +18,8 @@ if (light) document.documentElement.classList.add('light');
 
 const FG = light ? '15,17,21' : '249,250,251';
 const BG = light ? '#ffffff' : '#151517';
-let RING_ALPHA = light ? 0.1 : 0.12;   // web app boot spinner track (--dsh-boot-border); measured at hand-off
-let SPIN_R = 9;                        // spinner track centre-line radius; replaced by the measured value at hand-off
+let RING_ALPHA = light ? 0.1 : 0.12;   // spinner track alpha; replaced by the measured value at hand-off
+let SPIN_R = 9;                        // spinner track centre-line radius; idem
 const MONO = 'Consolas, "Cascadia Mono", monospace';
 
 const STATUS = zh
@@ -42,6 +40,7 @@ const handoff = document.getElementById('handoff');
 
 // ---------------------------------------------------------------- math
 const TAU = Math.PI * 2;
+const DEG = Math.PI / 180;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const seg = (t, a, b) => clamp01((t - a) / (b - a));
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -52,12 +51,15 @@ const inOutSine = (k) => -(Math.cos(Math.PI * k) - 1) / 2;
 const smooth = (k) => k * k * (3 - 2 * k);
 const fract = (v) => v - Math.floor(v);
 const hash = (n) => fract(Math.sin(n * 127.1 + 311.7) * 43758.5453);
+const wrapPi = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);   // angle into (−π, π]
+const pad = (n, w) => String(n).padStart(w, '0');
+/** cumulative arc length of a polyline [[x, y], …] */
+function cumLen(p) { const c = [0]; for (let i = 1; i < p.length; i++) c.push(c[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])); return c; }
 let fgNow = FG;
 const col = (a) => `rgba(${fgNow},${a < 0 ? 0 : a > 1 ? 1 : a})`;
 
-// The boot spinner is styled by the web app (and by anything that restyles it). At hand-off its measured
-// colours replace the built-in ones: the track alpha at once (scenes only ease toward RING_ALPHA during the
-// exit), the ink colour gradually over ex 0.55–0.85, while only the ring and arc are left.
+// The boot spinner is styled by the web app. At hand-off its measured colours replace the built-in ones: the track
+// alpha at once, the ink colour over ex 0.55–0.85 (only the ring and arc are left by then).
 const FG0 = FG.split(',').map(Number);
 let fgEnd = null;
 function parseColor(s) {
@@ -77,7 +79,6 @@ function tintToSpinner(ex) {
   const k = smooth(seg(ex, 0.55, 0.85));
   fgNow = FG0.map((v, i) => Math.round(lerp(v, fgEnd[i], k))).join(',');
 }
-const pad = (n, w) => String(n).padStart(w, '0');
 
 // ---------------------------------------------------------------- layout
 let W = 0, H = 0, DPR = 1, S = 1;
@@ -124,7 +125,7 @@ function whaleSubpaths() {
   return whaleSubs;
 }
 
-/** Whale centred at (cx, cy) with the given pixel height: fill path + sampled outline polylines. */
+/** Whale centred at (cx, cy) with the given pixel height: fill path + sampled outline polylines (longest first). */
 function makeWhale(cx, cy, height, step = 1.6) {
   const k = height / WB.h;
   const ox = cx - (WB.x + WB.w / 2) * k;
@@ -143,8 +144,8 @@ function makeWhale(cx, cy, height, step = 1.6) {
     polys.push(pts);
     total += pts.length;
   }
-  polys.sort((a, b) => b.length - a.length); // body first, details after
-  return { cx, cy, height, width: WB.w * k, k, fill, polys, total };
+  polys.sort((a, b) => b.length - a.length);
+  return { width: WB.w * k, fill, polys, total };
 }
 
 /** Whale outline resampled to exactly N points; `breaks` holds indices that start a new subpath. */
@@ -167,7 +168,7 @@ function whaleContour(wh, N) {
   return { pts, breaks };
 }
 
-/** Rasterised whale coverage lookup in screen space (0..1), optionally blurred for soft edges. */
+/** Rasterised whale coverage lookup (x, y) → 0..1, optionally blurred. Call in layout(). */
 function whaleMask(wh, blur = 0) {
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.ceil(W));
@@ -224,7 +225,15 @@ function text(str, x, y, a, size = 9.5, align = 'left') {
   ctx.fillText(str, x, y);
 }
 
-/** Outline traced from 0..progress, with a pen tip and an optional comet running along it. */
+/** stroke a Path2D with alpha a and width w */
+function strokePath(path, a, w) {
+  if (a <= 0.003) return;
+  ctx.strokeStyle = col(a);
+  ctx.lineWidth = w;
+  ctx.stroke(path);
+}
+
+/** Outline traced from 0..progress, with a pen tip and an optional comet (hiAt..hiAt+hiLen of the outline). */
 function drawWhale(wh, { progress = 1, a = 0.9, w = 1.3, map = null, hiAt = -1, hiLen = 0.14, hiA = 0, tip = true } = {}) {
   if (!wh || a <= 0.003) return;
   const P = map || ((p) => p);
@@ -284,9 +293,9 @@ function drawCorners(t, ex) {
   }
 }
 
-// The web app spinner (web-index.css `_spinner`): a 2px track with a solid progress arc on it, drawn from
-// 12 o'clock clockwise by --dsh-boot-arc (72° by default), the whole thing turning once every 0.8 s.
-/** canvas angle where the spinner's arc starts, now: from the measured spinner when there is one */
+// The web app spinner: a 2px track with a solid progress arc (72° by default, from 12 o'clock clockwise),
+// turning once every 0.8 s. With a measured spinner, its own phase, period and arc are used.
+/** canvas angle where the spinner's arc starts, now */
 function spinnerAngle(t) {
   if (handoffSpec) return TAU * (handoffSpec.phase + (Date.now() - handoffSpec.at) / handoffSpec.dur) - Math.PI / 2;
   return ((t % 0.8) / 0.8) * TAU - Math.PI / 2;
@@ -296,13 +305,13 @@ function spinnerSweep() {
   const m = handoffSpec && /([\d.]+)deg/.exec(handoffSpec.after.background || '');
   return ((m ? Number(m[1]) : 72) * Math.PI) / 180;
 }
-/** The spinner's arc, fading in from exit progress `from` (when no measured spinner takes over). */
-function drawSpinnerHead(t, ex, from = 0.55) {
-  if (ex <= from) return;
-  arc(HX, HY, SPIN_R, spinnerAngle(t), spinnerSweep(), seg(ex, from, 1), 2);
+/** The spinner's arc, fading in from ex 0.55 (for scenes that do not bring it in themselves). */
+function drawSpinnerHead(t, ex) {
+  if (ex <= 0.55) return;
+  arc(HX, HY, SPIN_R, spinnerAngle(t), spinnerSweep(), seg(ex, 0.55, 1), 2);
 }
 
-// ---------------------------------------------------------------- title, status, hud
+// ---------------------------------------------------------------- title, status
 const TITLE = 'DEEPSEEK HARNESS';
 const spans = [...TITLE].map((ch) => {
   const s = document.createElement('span');
@@ -1146,8 +1155,8 @@ SCENES.weave = (() => {
 })();
 
 // ===== scene: PULSAR — stacked ridgelines (after PSR B1919+21) with the whale embossed ===========
-// Rows are painted back to front, each occluding the ones behind it. On exit the plot lies down into a
-// skyline at the spinner's height, settles into one line, and curls into the spinner's progress arc.
+// Rows are painted back to front, each occluding the ones behind it. On exit the plot lies down into a skyline at
+// the spinner's height, settles into one line, and curls into the spinner's progress arc.
 SCENES.pulsar = (() => {
   const NR = 52, NP = 150;
   let top = 0, span = 0, half = 0, mask = null;
@@ -1172,15 +1181,14 @@ SCENES.pulsar = (() => {
   return {
     label: 'PULSAR',
     readyAt: 3.3,
-    spinnerIn: 0.89,   // its line becomes the spinner's arc: the real one waits until it has landed
+    spinnerIn: 0.89,   // its line becomes the spinner's arc
     titleAt: 2.0,
     layout() {
       headTo = null;
       span = 384 * S;
       top = CY - span / 2 + 8 * S;
       half = 300 * S;
-      // The lift raises every row inside the glyph, which adds to its apparent height; widen the
-      // mask to keep the embossed whale at its true proportions.
+      // the lift raises every row inside the glyph, adding to its apparent height; widen the mask to compensate
       const wh = makeWhale(CX, CY + 10 * S, 226 * S);
       const wide = new Path2D();
       wide.addPath(wh.fill, new DOMMatrix().translateSelf(CX, 0).scaleSelf(1.16, 1).translateSelf(-CX, 0));
@@ -1191,25 +1199,16 @@ SCENES.pulsar = (() => {
       const breathe = 0.86 + 0.14 * Math.sin(t * 1.5);
       scanRow = ((t - 1.2) * 11) % (NR + 24) - 12;
 
-      // Exit, in three moves. The plot is a height map: each row a profile across the ground, the rows
-      // further back drawn higher up the screen.
-      //  1. it lies down: the eye drops to the ground, so every row comes down onto one horizon at the
-      //     spinner's height, the far ones smaller (perspective), and the relief stands up from it as a
-      //     skyline, the near rows hiding the far ones except where those are higher;
-      //  2. the relief settles until the skyline is one line;
-      //  3. the line draws in and curls until it is the spinner's own progress arc, on the track and
-      //     turning with it (where the measured spinner then takes over).
+      // Exit, in three overlapping moves: 1. the plot lies down (kL): every row comes down onto one horizon at the
+      // spinner's height, the far ones smaller, the relief standing up from it as a skyline; 2. the relief settles
+      // (kF) while the far rows fade (kD); 3. the front row draws in and curls (kb) into the spinner's progress arc.
       const FRONT = NR - 1;
       const kL = inOutCubic(seg(ex, 0, 0.36));
-      // the relief starts settling as the lie-down slows, and keeps settling into the curl (it rides on the
-      // curling line), so no move starts from or ends in a standstill
       const kF = inOutSine(seg(ex, 0.3, 0.7));
-      // the far rows fade out while the relief is still settling; gone before the curl takes the front row
       const kD = smooth(seg(ex, 0.36, 0.56));
       const kb = inOutCubic(seg(ex, 0.56, 0.89));
       const yp = HY;
-      // x and height scale of a row (depth 0 back … 1 front) against the standing plot: lying down, the
-      // back row ends up 0.42 of the front row's width
+      // x and height scale of a row (depth 0 back … 1 front): lying down, the back row ends up 0.42 of the front's width
       const rowScale = (d) => lerp(1, (0.42 + 0.58 * d) / (0.8 + 0.2 * d), kL);
       // a point on the ground of the standing plot (the axes)
       const G = (x, y) => [CX + (x - CX) * rowScale(clamp01((y - top) / span)), lerp(y, yp, kL)];
@@ -1238,9 +1237,8 @@ SCENES.pulsar = (() => {
         }
       }
 
-      // move 2: the front row as a curve of constant curvature, from the straight line it lies in to the
-      // spinner's arc: its middle, heading, curvature and length all travel there together. The heading
-      // follows the spinner's turn without wrapping, so the curl never flips.
+      // move 3: the front row as a curve of constant curvature, from the straight line it lies in to the spinner's
+      // arc: middle, heading, curvature and length travel together. The heading follows the spinner without wrapping.
       let curl = null, curlW = 1;
       if (exiting && kb > 0) {
         const a0 = spinnerAngle(t), sw = spinnerSweep(), thc = a0 + sw / 2;
@@ -1248,12 +1246,11 @@ SCENES.pulsar = (() => {
         headTo += ((((a0 - lastA + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
         lastA = a0;
         const mx = lerp(CX, HX + Math.cos(thc) * SPIN_R, kb), my = lerp(yp, HY + Math.sin(thc) * SPIN_R, kb);
-        // length shrinks by the same ratio every frame (log scale), and the curve turns through a growing
-        // share of the arc's sweep, so neither jumps; it stays level while long and turns once it is short
+        // length shrinks in log scale; the curve turns through a growing share of the arc's sweep
         const len = Math.exp(lerp(Math.log(2 * half), Math.log(sw * SPIN_R), inOutSine(seg(ex, 0.56, 0.89))));
         const psi = headTo * kb * kb * kb, kap = (sw * smooth(kb)) / len;
         curlW = lerp(1, 2, smooth(seg(kb, 0.3, 1)));
-        // returns the point at u and the line's heading there; what is left of the relief stands on its normal
+        // the point at u and the line's heading there; what is left of the relief stands on its normal
         curl = (u) => {
           const s = (u * len) / 2;
           if (kap < 1e-5) return [mx + Math.cos(psi) * s, my + Math.sin(psi) * s, psi];
@@ -1265,8 +1262,7 @@ SCENES.pulsar = (() => {
       // ridgelines, back (top) to front (bottom)
       const xs = new Float32Array(NP), ys = new Float32Array(NP), ms = new Float32Array(NP);
       const bx = new Float32Array(NP), by = new Float32Array(NP);   // the row's baseline, for its fill
-      // the occluding fills go once the far rows have gone (they hide nothing after that); the fill is opaque
-      // paint on the canvas, so it fades rather than stops
+      // the occluding fills go once the far rows have gone; they are opaque paint on the canvas, so they fade
       const fillA = 1 - smooth(seg(ex, 0.5, 0.68));
       ctx.lineJoin = 'round';
       for (let r = 0; r < NR; r++) {
@@ -1278,12 +1274,11 @@ SCENES.pulsar = (() => {
         const amp = outCubic(seg(t, 0.9 + (NR - 1 - r) * 0.016, 1.6 + (NR - 1 - r) * 0.016)) * 30 * S;
         const liftK = smooth(seg(t, 1.6 + r * 0.013, 2.4 + r * 0.013));
         const lift = liftK * 27 * S * breathe;
-        // once the relief has settled all the rows are in the one line: the front row takes over their light
         const scan = Math.exp(-(((r - scanRow) / 1.6) ** 2)) * seg(t, 1.2, 1.6) * (1 - kL);
         let a = (0.32 + 0.5 * depth + 0.45 * scan) * (light ? 0.95 : 1);
         if (r === FRONT) a = lerp(a, 1, smooth(seg(ex, 0.36, 0.62)));
         else a *= 1 - kD;
-        // seen from the ground the relief stands taller than from above (heights are no longer foreshortened)
+        // seen from the ground the relief stands taller than from above
         const k = rowScale(depth), base = lerp(baseY, yp, kL), hk = k * lerp(1, 1.9, kL) * (1 - kF);
         if (a <= 0.003 && fillA <= 0.003) continue;
         const curling = r === FRONT && curl;
@@ -1340,16 +1335,15 @@ SCENES.pulsar = (() => {
         }
       }
       ctx.lineJoin = 'miter';
-      // the spinner track comes up under the arriving arc (not before: the line runs through it)
+      // the spinner track comes up under the arriving arc
       if (exiting) arc(HX, HY, SPIN_R, 0, TAU, RING_ALPHA * smooth(seg(ex, 0.74, 0.89)), 2);
     },
   };
 })();
 
 // ===== scene: CURRENT — a flow field streaming around the whale ==================================
-// The whale is never drawn up front: it is the obstacle the current bends around, read as the
-// negative space between streamlines, echoed by pulsing isobars. On exit the stream winds into a
-// vortex that settles onto the spinner track.
+// The whale is the obstacle the current bends around, read as the negative space between streamlines and echoed by
+// pulsing isobars. On exit the stream winds into a vortex that settles onto the spinner track.
 SCENES.current = (() => {
   const NP = 950;          // tracer particles
   const TRAIL = 14;        // positions kept per tracer
@@ -1360,7 +1354,6 @@ SCENES.current = (() => {
   const px = new Float32Array(NP), py = new Float32Array(NP);
   const hist = new Float32Array(NP * TRAIL * 2);
   const head = new Int32Array(NP), filled = new Int32Array(NP);
-  const ang0 = new Float32Array(NP);
   let exitCaptured = false, lastT = 0, reynolds = 0, r0 = 0;
 
   function spawn(i, anywhere) {
@@ -1374,9 +1367,8 @@ SCENES.current = (() => {
     filled[i] = 0;
   }
 
-  // velocity at (x, y): uniform stream + gentle swell, deflected around the whale
-  // Slip boundary: near the hull the component of the stream heading into it is removed, so
-  // streamlines slide along the isobars and close up again behind the whale.
+  // velocity at (x, y): uniform stream + gentle swell, deflected around the whale (slip boundary: the component
+  // heading into the hull is removed, so streamlines slide along the isobars and close up behind)
   function field(x, y, t, out) {
     const h = 3 * S;
     const b = blurField(x, y);
@@ -1391,8 +1383,7 @@ SCENES.current = (() => {
       const w = smooth(clamp01(b / 0.42));
       if (into > 0) { ux -= nx * into * w; uy -= ny * into * w; }
       else { ux -= nx * into * w * 1.05; uy -= ny * into * w * 1.05; } // rear: hug the hull and close up
-      // squeeze speeds the flow up along the flanks, like a real streamline bundle
-      const boost = 1 + 0.55 * w;
+      const boost = 1 + 0.55 * w;                // squeeze speeds the flow up along the flanks
       ux *= boost; uy *= boost;
       if (b > 0.45) { ux -= nx * speed * 1.4 * (b - 0.45) * 4; uy -= ny * speed * 1.4 * (b - 0.45) * 4; }
     }
@@ -1518,7 +1509,7 @@ SCENES.current = (() => {
       if (exiting && !exitCaptured) {
         exitCaptured = true;
         r0 = 0;
-        for (let i = 0; i < NP; i++) { ang0[i] = Math.atan2(py[i] - HY, px[i] - HX); r0 += Math.hypot(px[i] - HX, py[i] - HY) / NP; }
+        for (let i = 0; i < NP; i++) r0 += Math.hypot(px[i] - HX, py[i] - HY) / NP;
       }
       // the stream bends into the vortex over the first third of the exit instead of turning on the spot
       const bend = exiting ? smooth(seg(ex, 0, 0.32)) : 0;
@@ -1556,11 +1547,9 @@ SCENES.current = (() => {
 
       // ---- draw trails (bright head, faint tail) in two batches
       {
-        // as the vortex tightens the same trails pile into a smaller disc: thin them out with it, so it never
-        // turns into a solid white mass
+        // as the vortex tightens the trails pile into a smaller disc: thin them out with it
         const dense = exiting ? Math.min(1, Math.max(0.16, (1.4 * rSum) / NP / (r0 || 1))) : 1;
-        // while the stream turns, only the newest few positions are drawn, so no trail shows the turn as a
-        // corner or a hook; the trails grow back once the vortex has formed
+        // while the stream turns only the newest few positions are drawn (no hooks); the trails grow back after
         const len = exiting ? Math.round(lerp(lerp(TRAIL, 8, seg(ex, 0, 0.1)), TRAIL, seg(ex, 0.3, 0.5))) : TRAIL;
         const base = (light ? 0.5 : 0.42) * emit * dense * Math.sqrt(TRAIL / len) * (1 - seg(ex, 0.72, 1));
         if (base > 0.003) {
@@ -1627,34 +1616,30 @@ SCENES.current = (() => {
 })();
 
 // ===== scene: SPLINE — a drafting batten bent into the whale by spline weights ('ducks', 'whales') ======
-// A bentwood loop lies on a lofting table: the whale's own body circle. Twelve spline weights (draftsmen's
-// ducks, also called whales) set down: five hold the head, seven pull the chin, back, and tail out of the
-// circle in two waves that run into the tail. A ruling pen inks the line from the fluke tip round, a second
-// pen inks the curl and the fin, a pin marks the eye. On exit the weights lift, the loop eases back to its
-// circle, which shrinks onto the spinner track while its ink gathers into the progress arc.
+// A bentwood loop lies on a lofting table: the whale's body circle. Twelve spline weights set down: five hold the
+// head, seven pull the chin, back and tail out of the circle in two waves. A ruling pen inks the line from the fluke
+// tip round, a second pen inks the curl and the fin, a pin marks the eye. On exit the weights lift, the loop eases
+// back to its circle, which shrinks onto the spinner track while its ink gathers into the progress arc.
 SCENES.spline = (() => {
   const HW = 200;          // whale height × S
   const NB = 400;          // batten samples (closed)
   const EXD = 1.05;        // exit duration (s)
-  const SIG_LO = 16;       // smoothing of the bulge displacement (samples): the tail swells as one round bud
+  const SIG_LO = 16;       // smoothing of the bulge displacement (samples)
   // weights: u on the body outline (u = 0 at the right fluke tip, increasing anticlockwise on screen)
   const DU = [0.06, 0.135, 0.25, 0.345, 0.43, 0.50, 0.57, 0.64, 0.71, 0.775, 0.87, 0.975];
   const ND = DU.length;
   const HEAD = [4, 5, 6, 7, 8];
   const T_HEAD = [0.79, 0.63, 0.55, 0.71, 0.87];        // head weights set down (hold only)
-  // arrival time of the pull along u (knots, u may exceed 1 to wrap): two waves (chin → right side, head top →
-  // bay) run into the tail, which swells nearly all at once as one bud, notch last
+  // arrival time of the pull along u (knots; u may exceed 1 to wrap): two waves run into the tail, notch last
   const TB = [[0.74, 1.0], [0.775, 1.0], [0.87, 1.12], [0.922, 1.22], [0.975, 1.26], [1.06, 1.29], [1.135, 1.26],
     [1.197, 1.24], [1.25, 1.22], [1.30, 1.16], [1.345, 1.1], [1.40, 1.0], [1.74, 1.0]];
   // release (exit progress) along u: the reverse, from the notch outwards
   const TR = [[0.74, 0.06], [0.775, 0.055], [0.87, 0.045], [0.922, 0.035], [0.975, 0.025], [1.06, 0.012], [1.135, 0.025],
     [1.197, 0.035], [1.25, 0.045], [1.345, 0.055], [1.40, 0.06], [1.74, 0.06]];
-  // each sample eases back (no overshoot) over REL of exit progress: the detail first, the bulge DLY later, so the
-  // flukes melt into a bud before the bud draws in; all of it is round by ex ≈ 0.39
+  // each sample eases back over REL of exit progress: the detail first, the bulge DLY later; all round by ex ≈ 0.39
   const REL = 0.28, DLY = 0.05;
-  // the pens (s). The ruling pen sets down at the fluke tip (u = U0) once the tail has settled and goes once round
-  // the body, so the intricate tail falls in its slow start and finish; a second pen inks the inner curl, then the
-  // fin. Each pen sets down and lifts at rest, and slows where the line turns tightly.
+  // the pens (s): the ruling pen sets down at the fluke tip (U0) once the tail has settled and goes once round the
+  // body; a second pen inks the inner curl, then the fin. Each slows where the line turns tightly.
   const U0 = 0;
   const PEN_B = [1.64, 2.56], PEN_C = [2.34, 2.84], PEN_F = [2.76, 2.98];
   const PACE = 0.9;        // how much a tight turn slows a pen
@@ -1688,7 +1673,6 @@ SCENES.spline = (() => {
     return 1 - Math.exp(-z * w * tau) * (Math.cos(wd * tau) + ((z * w) / wd) * Math.sin(wd * tau));
   };
   const cyc = (d) => d - Math.round(d);
-  const wrapPI = (a) => a - TAU * Math.round(a / TAU);
   // ease with a cruise: sine ramps over the first and last fraction a, constant speed between
   const glide = (k, a) => {
     if (k <= 0) return 0;
@@ -1729,26 +1713,33 @@ SCENES.spline = (() => {
     for (let i = 1; i < n; i++) cum[i] /= cum[n - 1];
     return cum;
   }
-
-  // piecewise-linear knots over u in [0.74, 1.74), sampled per batten index, then smoothed (periodic)
-  function knotTable(knots, out, sm) {
-    const raw = new Float32Array(NB);
+  // Gaussian smoothing of a periodic table (sigma sm samples; raw may carry a per-wrap offset)
+  function smoothLoop(raw, out, sm, wrapOff = 0) {
+    for (let i = 0; i < NB; i++) {
+      let s = 0, w = 0;
+      for (let j = -3 * sm; j <= 3 * sm; j++) {
+        const ii = i + j, wrap = Math.floor(ii / NB);
+        const ww = Math.exp(-(j * j) / (2 * sm * sm));
+        s += (raw[((ii % NB) + NB) % NB] - wrap * wrapOff) * ww; w += ww;
+      }
+      out[i] = s / w;
+    }
+  }
+  // piecewise-linear knots over u in [u0, u0 + 1), sampled per batten index
+  function knotRaw(knots, u0, raw) {
     for (let i = 0; i < NB; i++) {
       let u = i / NB;
-      if (u < 0.74) u += 1;
+      if (u < u0) u += 1;
       let j = 0;
       while (j < knots.length - 2 && knots[j + 1][0] < u) j++;
       const [ua, va] = knots[j], [ub, vb] = knots[j + 1];
       raw[i] = va + (vb - va) * clamp01((u - ua) / (ub - ua));
     }
-    for (let i = 0; i < NB; i++) {
-      let s = 0, w = 0;
-      for (let j = -3 * sm; j <= 3 * sm; j++) {
-        const ww = Math.exp(-(j * j) / (2 * sm * sm));
-        s += raw[(((i + j) % NB) + NB) % NB] * ww; w += ww;
-      }
-      out[i] = s / w;
-    }
+  }
+  function knotTable(knots, out, sm) {
+    const raw = new Float32Array(NB);
+    knotRaw(knots, 0.74, raw);
+    smoothLoop(raw, out, sm);
   }
 
   // batten coordinate u (0..1) whose circle angle is th
@@ -1761,9 +1752,7 @@ SCENES.spline = (() => {
     return (lo + (a - target) / (a - b || 1)) / NB;
   }
 
-  function cumLen(p) { const c = [0]; for (let i = 1; i < p.length; i++) c.push(c[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])); return c; }
-  // polyline points 0..s (fractional index), mapped through (tx, ty), into path; returns the pen point while
-  // it is partial. (The points are mapped, so the details need no context transform during the exit.)
+  // polyline points 0..s (fractional index), mapped through (tx, ty), into path; returns the pen point while partial
   function tracePoly(path, pts, s, tx, ty) {
     if (s <= 0) return null;
     const n = pts.length - 1, m = Math.min(n, Math.floor(s));
@@ -1824,11 +1813,10 @@ SCENES.spline = (() => {
         C0x = M[0][3] / M[0][0] / 2; C0y = M[1][3] / M[1][1] / 2;
         R0 = Math.sqrt(M[2][3] / M[2][2] + C0x * C0x + C0y * C0y);
       }
-      // correspondence u -> angle on the circle (decreasing): the head keeps its own polar angle, the
-      // bumps take the arc under them, the tail grows out of a short arc at its neck
+      // correspondence u -> angle on the circle (decreasing): the head keeps its own polar angle, the bumps take the
+      // arc under them, the tail grows out of a short arc at its neck
       {
         const phi = (u) => { const i = Math.round(u * NB) % NB; return Math.atan2(Gy[i] - C0y, Gx[i] - C0x); };
-        const deg = Math.PI / 180;
         const a40 = phi(0.40);
         let a74 = phi(0.74);
         while (a74 > a40) a74 -= TAU;
@@ -1838,27 +1826,13 @@ SCENES.spline = (() => {
           while (a > (knots.length ? knots[knots.length - 1][1] : a40 + 0.5)) a -= TAU;
           knots.push([u, a]);
         }
-        knots.push([0.82, a74 - 18 * deg], [0.922, a74 - 65 * deg], [1.197, a74 - (65 + NECK) * deg],
-          [1.30, a40 - TAU + 57 * deg], [1.40, a40 - TAU]);
+        knots.push([0.82, a74 - 18 * DEG], [0.922, a74 - 65 * DEG], [1.197, a74 - (65 + NECK) * DEG],
+          [1.30, a40 - TAU + 57 * DEG], [1.40, a40 - TAU]);
         const raw = new Float64Array(NB);
+        knotRaw(knots, 0.40, raw);
+        for (let i = 0; i < NB; i++) if (i / NB < 0.40) raw[i] += TAU;
+        smoothLoop(raw, TH, 5, TAU);
         for (let i = 0; i < NB; i++) {
-          let u = i / NB;
-          if (u < 0.40) u += 1;
-          let j = 0;
-          while (j < knots.length - 2 && knots[j + 1][0] < u) j++;
-          const [ua, aa] = knots[j], [ub, ab] = knots[j + 1];
-          raw[i] = aa + (ab - aa) * clamp01((u - ua) / (ub - ua));
-          if (i / NB < 0.40) raw[i] += TAU;
-        }
-        const sm = 5;
-        for (let i = 0; i < NB; i++) {
-          let s = 0, w = 0;
-          for (let j = -3 * sm; j <= 3 * sm; j++) {
-            const ii = i + j, wrap = Math.floor(ii / NB);
-            const ww = Math.exp(-(j * j) / (2 * sm * sm));
-            s += (raw[((ii % NB) + NB) % NB] - wrap * TAU) * ww; w += ww;
-          }
-          TH[i] = s / w;
           Cx[i] = C0x + Math.cos(TH[i]) * R0;
           Cy[i] = C0y + Math.sin(TH[i]) * R0;
         }
@@ -1897,7 +1871,7 @@ SCENES.spline = (() => {
         for (let j = -30; j <= 30; j++) { const ww = Math.exp(-(j * j) / 200); s += raw[(i + j + NB) % NB] * ww; w += ww; }
         Kq[i] = s / w;
       }
-      // body pen effort from U0 once round (slower through the tight turns of the tail and the hooks)
+      // body pen effort from U0 once round (slower through the tight turns)
       {
         const f = new Float64Array(NB);
         for (let i = 0; i < NB; i++) {
@@ -1975,7 +1949,7 @@ SCENES.spline = (() => {
             const x = CX - half + k * dSt;
             const g = outExpo(seg(t, 0.05 + Math.abs(k - 5) * 0.035, 0.75 + Math.abs(k - 5) * 0.035));
             const hl = 175 * S * g;
-            const near = smooth(Math.max(0, 1 - Math.abs(x - xc) / dSt));   // no cusp as the comb crosses a station
+            const near = smooth(Math.max(0, 1 - Math.abs(x - xc) / dSt));   // the station under the comb brightens
             line(TX(x), TY(CY - hl), TX(x), TY(CY + hl), a0 * (k % 5 === 0 ? 1.43 : 1) * (1 + 1.6 * near * near * combA));
           }
           for (let m = 0; m <= 6; m++) {
@@ -2013,8 +1987,7 @@ SCENES.spline = (() => {
         const aB = 0.5 * L * smooth(seg(t, 0.06, 0.45)) * (1 - smooth(seg(ex, 0, 0.25)));
         if (aB > 0.003) {
           const aInked = aB * (1 - 0.86 * smooth(seg(t, PEN_B[0], PEN_B[1] + 0.3)));
-          // never closer than 2.3 px: below S = 1 the two 1 px hairlines would merge into a beaded band
-          const hb = 1.15 * Math.max(1, S);
+          const hb = 1.15 * Math.max(1, S);   // never closer than 2.3 px, or the two hairlines bead
           const kPen = Math.min(NB, Math.floor(sB));
           const pa = new Path2D(), pb = new Path2D();
           for (const side of [1, -1]) {
@@ -2037,7 +2010,7 @@ SCENES.spline = (() => {
         const A = combA;
         if (A > 0.003) {
           const quills = new Path2D(), env = new Path2D();
-          // walk the window in u order from one edge to the other, so the envelope is one line across u = 0
+          // walk the window in u order, so the envelope is one line across u = 0
           const c0 = 2 * Math.round((combU * NB) / 2), K = 2 * Math.ceil((COMB_SPAN * NB) / 2);
           let first = true;
           for (let k = -K; k <= K; k += 2) {
@@ -2157,7 +2130,7 @@ SCENES.spline = (() => {
         const a = 0.36 * L * set * keep * (1 + 0.9 * w);
         if (a <= 0.003) continue;
         let ang = aG[j];
-        if (!isHead[j]) ang = aR[j] + wrapPI(aG[j] - aR[j]) * smooth(seg(t, Tb[i] - 0.02, Tb[i] + 0.55));
+        if (!isHead[j]) ang = aR[j] + wrapPi(aG[j] - aR[j]) * smooth(seg(t, Tb[i] - 0.02, Tb[i] + 0.55));
         ang += 0.06 * rock;
         const nx = Math.cos(ang), ny = Math.sin(ang);
         const off = (0.8 * w + 6 * lift) * S * sig;
@@ -2205,14 +2178,12 @@ SCENES.spline = (() => {
 })();
 
 // ===== scene: HANZI — 鲸 written on a 米字格; its sixteen strokes swim into the whale ===========
-// 鲸 ('whale') is written stroke by stroke in single-line Fangsong lettering, with stroke-order numbers.
-// Then each stroke lifts off and swims (gliding, turning, scaling and bending) onto its own segment of the
-// whale's outline: 亠 becomes the tail, 口 the eye, 田 the belly crescent. While waiting, one pen re-traces the
-// whale in the stroke order of 鲸, and the stroke it re-inks shows faintly in the grid with its number. On exit
-// the sixteen segments gather into a dashed 〇 (U+3007) that closes into the spinner track, and the pen comes
-// down to write a seventeenth stroke: the progress arc.
+// 鲸 is written stroke by stroke (single-line Fangsong, with stroke-order numbers); then each stroke swims (gliding,
+// turning, scaling, bending) onto its own piece of the whale's outline. While waiting, a pen re-traces the whale in
+// stroke order and the stroke it re-inks shows faintly in the grid. On exit the pieces gather into a dashed 〇 that
+// closes into the spinner track, and the pen writes a seventeenth stroke: the progress arc.
 SCENES.hanzi = (() => {
-  // 鲸 in a 1000-unit em (y down), GB stroke order; read off a skeleton of FangSong, serifs dropped.
+  // 鲸 in a 1000-unit em (y down), GB stroke order; skeleton of FangSong, serifs dropped
   const STROKES = [
     ['撇', [301, 62], [297, 126], [250, 213], [200, 297], [152, 368], [88, 446]],
     ['横撇', [248, 252], [374, 246], [362, 280], [338, 318], [306, 388]],
@@ -2232,8 +2203,7 @@ SCENES.hanzi = (() => {
     ['点', [760, 656], [840, 724], [900, 796]],
   ];
   const CORNER = { '横撇': 1, '横折': 1, '竖钩': 1 };
-  // Each stroke's piece of the outline: [loop, from, to] in fractions of that loop's length from its first
-  // point (loops as makeWhale sorts them: 0 body, 1 crescent, 2 curl, 3 eye).
+  // each stroke's piece of the outline: [loop, from, to] as fractions of the loop's length (0 body, 1 crescent, 2 curl, 3 eye)
   const TARGET = [
     [0, 0.3003, 0.4833], [0, 0.1600, 0.3003], [0, 0.4833, 0.5523], [1, 0.4702, 0.9404],
     [2, 0.47, 1.47], [1, 0.1959, 0.4702], [1, 0.9404, 1.1959], [0, 0.5523, 0.6731],
@@ -2243,12 +2213,10 @@ SCENES.hanzi = (() => {
   // stroke-order numbers, hand-placed clear of the lines (em units)
   const NUM = [[301, 38], [270, 228], [184, 426], [226, 380], [184, 514], [338, 366], [184, 659], [80, 846],
     [612, 46], [452, 276], [548, 416], [592, 374], [548, 574], [708, 580], [556, 626], [742, 638]];
-  // pieces that swim as one rigid group (shared frame: no turn, no bow): 口 shrinks into the eye, 田's frame
-  // squashes into the belly crescent
+  // pieces that swim as one rigid group: 口 → the eye, 田's frame → the belly crescent
   const GROUPS = [[10, 11, 12], [3, 5, 6]];
   const groupOf = (i) => GROUPS.findIndex((g) => g.includes(i));
-  // Departures, 50 ms apart, in an order that keeps the paths from crossing: 横 10 clears the tail's place
-  // before 横撇 2 and 点 9 arrive there; 田 and 口 are out of the way before 横 5 curls up beside the eye.
+  // departure slots, 50 ms apart, ordered so the paths never cross
   const SLOT = [1, 2, 3, 4, 8, 4, 4, 6, 9, 0, 5, 5, 5, 10, 11, 12];
   const N = STROKES.length;
   const ws = (i) => 0.30 + 0.066 * i - 0.0006 * i * i;           // writing start
@@ -2262,7 +2230,6 @@ SCENES.hanzi = (() => {
   let recs = [], pen = [], TP = 1;
   let readLine = '', lastStroke = 1;
 
-  const wrapPi = (a) => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
   function catmull(kind, pts) {
     const c = CORNER[kind] || -1, out = [];
     const runs = c > 0 ? [pts.slice(0, c + 1), pts.slice(c)] : [pts];
@@ -2279,7 +2246,6 @@ SCENES.hanzi = (() => {
     }
     return out;
   }
-  function cumLen(p) { const c = [0]; for (let i = 1; i < p.length; i++) c.push(c[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])); return c; }
   function resample(p, n) {
     const cum = cumLen(p), L = cum[cum.length - 1], out = [];
     let j = 1;
@@ -2306,7 +2272,7 @@ SCENES.hanzi = (() => {
       },
     };
   }
-  // minimum-cost assignment of rows to columns (Hungarian method, O(n³)); returns the column of each row
+  // minimum-cost assignment of rows to columns (Hungarian method); returns the column of each row
   function assign(c) {
     const n = c.length, u = new Float64Array(n + 1), v = new Float64Array(n + 1), p = new Int32Array(n + 1), way = new Int32Array(n + 1);
     for (let i = 1; i <= n; i++) {
@@ -2332,7 +2298,7 @@ SCENES.hanzi = (() => {
     for (let j = 1; j <= n; j++) col[p[j] - 1] = j - 1;
     return col;
   }
-  // a group's frame: centroid and RMS radius (groups never turn)
+  // a group's frame: centroid and RMS radius
   function frameOf(P) {
     let cx = 0, cy = 0;
     for (const q of P) { cx += q[0]; cy += q[1]; }
@@ -2342,7 +2308,7 @@ SCENES.hanzi = (() => {
     return { x: cx, y: cy, s: Math.sqrt(ss / P.length) || 1e-3 };
   }
   const local = (P, f) => P.map(([x, y]) => [(x - f.x) / f.s, (y - f.y) / f.s]);
-  // A polyline as its edges: directions (unwrapped along the line), their length-weighted mean, log lengths.
+  // a polyline as its edges: directions (unwrapped), their length-weighted mean, log lengths, centroid
   function edges(P) {
     const m = P.length - 1, ang = new Float64Array(m), ln = new Float64Array(m);
     let sl = 0, sa = 0, cx = 0, cy = 0;
@@ -2356,16 +2322,15 @@ SCENES.hanzi = (() => {
     for (const q of P) { cx += q[0]; cy += q[1]; }
     return { ang, ln, mean: sa / sl, cx: cx / P.length, cy: cy / P.length };
   }
-  // A → B blended by edge direction and length, not point by point: a line curls up and a loop opens
-  // without collapsing. The mean direction is the piece's heading (it turns by the wrapped difference, plus
-  // any extra turn, never re-wrapped); the deviations from it are its bend.
+  // A → B blended by edge direction and length (a line curls up, a loop opens, nothing collapses): the mean
+  // direction is the heading, the deviations from it the bend
   function pair(A, B) {
     const a = edges(A), b = edges(B), m = a.ang.length;
     const dA = new Float64Array(m), dB = new Float64Array(m);
     for (let j = 0; j < m; j++) { dA[j] = a.ang[j] - a.mean; dB[j] = b.ang[j] - b.mean; }
     return { n: A.length, dA, dB, lA: a.ln, lB: b.ln, head: a.mean, turn: wrapPi(b.mean - a.mean), ax: a.cx, ay: a.cy, bx: b.cx, by: b.cy };
   }
-  // pose at: kc centroid (on a bowed path to bx, by), kt heading, kh bend, ks size
+  // pose: kc centroid (on a bowed path to bx, by), kt heading, kh bend, ks size
   function blend(M, kc, kt, kh, ks, bow, extra, bx, by, out) {
     const head = M.head + (M.turn + extra) * kt;
     let x = 0, y = 0, sx = 0, sy = 0;
@@ -2384,7 +2349,7 @@ SCENES.hanzi = (() => {
     const py = u * u * M.ay + 2 * kc * u * my + kc * kc * by - sy / M.n;
     for (let j = 0; j < M.n; j++) { out[j][0] += px; out[j][1] += py; }
   }
-  // a group piece: the shared frame glides and scales (log), the piece's shape blends inside it
+  // a group piece: the shared frame glides and scales (log), the shape blends inside it
   function morphGroup(r, k, kh, out) {
     const A = r.fa, B = r.fb;
     const cx = lerp(A.x, B.x, k), cy = lerp(A.y, B.y, k), s = Math.exp(lerp(Math.log(A.s), Math.log(B.s), k));
@@ -2411,15 +2376,9 @@ SCENES.hanzi = (() => {
     const k = (s - cum[j - 1]) / (cum[j] - cum[j - 1] || 1);
     return [lerp(P[j - 1][0], P[j][0], k), lerp(P[j - 1][1], P[j][1], k)];
   }
-  function strokePath(path, a, w) {
-    if (a <= 0.003) return;
-    ctx.strokeStyle = col(a);
-    ctx.lineWidth = w;
-    ctx.stroke(path);
-  }
   const iu = (z) => z * z * z - (z * z * z * z) / 2;               // ∫ smooth
-  // A run's clock: its speed rises (as a quarter sine) over its first `a` of time, holds, and falls the
-  // same way over its last `a`. trap: raw time 0..1 → share of the run's time budget; trapInv: the inverse.
+  // a run's clock: speed rises (quarter sine) over its first `a` of time, holds, falls over its last `a`.
+  // trap: raw time 0..1 → share of the run's time budget; trapInv: the inverse
   const rampI = (z) => (2 / Math.PI) * (1 - Math.cos((Math.PI / 2) * z));
   function trap(raw, a) {
     const r = clamp01(raw), m = 2 / Math.PI, T = 1 - 2 * a + 2 * a * m;
@@ -2437,12 +2396,12 @@ SCENES.hanzi = (() => {
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (run.tw[m] <= tt) lo = m; else hi = m; }
     return (run.L * (lo + (tt - run.tw[lo]) / (run.tw[hi] - run.tw[lo] || 1))) / run.K;
   }
-  // pass time at which an ink run reaches arc length s (the inverse of sAt)
+  // pass time at which an ink run reaches arc length s (inverse of sAt)
   function timeAt(run, s) {
     const f = clamp01(s / run.L) * run.K, k = Math.min(run.K - 1, Math.floor(f));
     return run.t0 + trapInv(lerp(run.tw[k], run.tw[k + 1], f - k) / run.tw[run.K], run.a) * run.d;
   }
-  // the idle pen at pass time tau: position, how far down it is (1 inking, 0 lifted), the stroke it inks
+  // the idle pen at pass time tau: position, how far down (1 inking, 0 lifted), the stroke it inks
   function penAt(tau) {
     for (const ph of pen) {
       if (tau > ph.t0 + ph.d) continue;
@@ -2469,7 +2428,7 @@ SCENES.hanzi = (() => {
     label: 'HANZI',
     readyAt: 3.4,
     titleAt: 2.1,
-    spinnerIn: ARC,    // the seventeenth stroke is the spinner's arc: the real one waits until it has landed
+    spinnerIn: ARC,
     layout() {
       G = 180 * S;
       R0 = 120 * S;
@@ -2503,10 +2462,9 @@ SCENES.hanzi = (() => {
         const fa = frameOf(grp.flatMap((i) => recs[i].src)), fb = frameOf(grp.flatMap((i) => recs[i].dst));
         for (const i of grp) { const r = recs[i]; r.fa = fa; r.fb = fb; r.la = local(r.src, fa); r.lb = local(r.dst, fb); }
       }
-      // exit: each segment gets a 1/16 sector of a ring (radius R0 at whale scale): the assignment (and the
-      // ring's phase) with the least total travel, so no two pieces' paths cross; it runs along its sector in
-      // the direction that needs the smaller turn (counting the ring's own swirl, about 0.3 rad by the time
-      // the pieces land), then the shorter trip
+      // exit: each segment gets a 1/16 sector of a ring (radius R0): the assignment and ring phase with the least
+      // total travel, so no paths cross; each runs along its sector in the direction needing the smaller turn
+      // (counting the ring's swirl, ≈0.3 rad by landing), then the shorter trip
       const dock = recs.map((r) => edges(r.dst));
       const D = TAU / N;
       let best = null, bestCost = Infinity;
@@ -2531,12 +2489,11 @@ SCENES.hanzi = (() => {
         r.me = pair(P, (opts[0].cost <= opts[1].cost ? opts[0] : opts[1]).Q);
         r.grow = r.me.lB[0] > r.me.lA[0];
       });
-      // launch order: the outline first (it opens into the dashed ring where it stands), then the eye, curl
-      // and crescent fly out through the gaps it leaves
+      // launch order: the outline first, then the eye, curl and crescent fly out through the gaps it leaves
       const launch = [0, 1, 2, 7, 8, 9, 13, 14, 15, 3, 5, 6, 4, 10, 11, 12];
       launch.forEach((ri, j) => { recs[ri].ea = 0.03 + 0.013 * j; });
-      // The idle pen inks the segments in stroke order. Where a segment ends at the next one's start it carries
-      // straight on (one run, no lift); otherwise it lifts and flies. Along a run it slows into tight bends.
+      // The idle pen inks the segments in stroke order; where one ends at the next one's start it carries on (one
+      // run), otherwise it lifts and flies. Along a run it slows into tight bends.
       pen = [];
       let T = 0;
       for (let i = 0; i < N;) {
@@ -2554,10 +2511,8 @@ SCENES.hanzi = (() => {
           for (let j = P.length ? 1 : 0; j < d.length; j++) P.push(d[j]);
         }
         const cum = cumLen(P), L = cum[cum.length - 1];
-        // its speed along the run (1 = cruising): slowed where the path bends tightly (curvature over ±4 px:
-        // a 12 px radius or a 20° kink halves it, a tip brings it down to 18%), the slowing reaching 32 px ahead
-        // and behind on an S-curve so the pen eases into a tip and out of it; tw is the (relative) time to each
-        // 1-px sample
+        // speed along the run (1 = cruising): halved by a 12 px radius or a 20° kink, 18% at a tip; the slowing
+        // reaches 32 px ahead and behind on an S-curve. tw: relative time to each 1-px sample
         const K = Math.max(8, Math.ceil(L / S)), h = 4 * S, W = Math.max(1, Math.round((32 * S * K) / L));
         const vr = new Float64Array(K + 1).fill(1);
         for (let k = 0; k <= K; k++) {
@@ -2571,11 +2526,11 @@ SCENES.hanzi = (() => {
         for (let k = 0; k <= K; k++) {
           let m = 1;
           for (let j = Math.max(0, k - W); j <= Math.min(K, k + W); j++) m = Math.min(m, vr[j] + smooth(Math.abs(j - k) / W) * (1 - vr[j]));
-          // (near the run's ends its own start and stop do the slowing: no second dip on top of them)
+          // near the run's ends its own start and stop do the slowing
           v[k] = lerp(Math.max(m, 0.5), m, smooth(Math.min(1, (Math.min(k, K - k) * L) / K / (12 * S))));
           if (k) tw[k] = tw[k - 1] + (2 * L) / K / (v[k - 1] + v[k]);
         }
-        // it cruises at 420 px/s (7 px a frame), taking up to 0.15 s to get up to speed and to stop
+        // cruise 420 px/s, up to 0.15 s to get up to speed and to stop
         const ramp = Math.min(0.15, 0.08 + L / (600 * S));
         const d = tw[K] / (420 * S) + 2 * ramp * (1 - 2 / Math.PI);
         const run = { ink: true, segs, offs, P, cum, L, K, tw, t0: T, d, a: Math.min(0.45, ramp / d) };
@@ -2586,8 +2541,7 @@ SCENES.hanzi = (() => {
           r.len = (j + 1 < segs.length ? offs[j + 1] : L) - offs[j];
           r.ta = timeAt(run, r.off);
           r.tb = timeAt(run, r.off + r.len);
-          // its stroke in the grid is drawn in step with the pen, but never faster than 300 px/s on average:
-          // the eye's three tiny segments would otherwise flash the long 口 strokes in within a few frames
+          // its stroke in the grid follows the pen, but never faster than 300 px/s on average
           r.gd = Math.max(r.tb - r.ta, r.lenA / (300 * S));
           r.gs = r.gd > r.tb - r.ta + 1e-6;
         });
@@ -2641,15 +2595,13 @@ SCENES.hanzi = (() => {
       const tau = t - PEN0;
       let tp = tau >= 0 ? tau % TP : 0;
       if (exiting) {
-        // its clock runs down to a stop over ex 0–0.16 (pass time ∫ 1 − smooth), so the pen slows to rest,
-        // wherever it was, before it flies to the ring (from 0.12: it turns round at a crawl, never at speed)
+        // its clock runs down to a stop over ex 0–0.16, so the pen comes to rest before it flies to the ring
         const z = Math.min(1, ex / 0.16), te = t - ex * EXIT - PEN0;
         tp = Math.max(0, te + EXIT * 0.16 * (z - iu(z))) % TP;
       }
       const penOn = smooth(seg(t, PEN0 - 0.3, PEN0));
-      // how far the pen has re-inked segment i in this pass (p), how fresh that is (f), where the wet head
-      // starts (pw: the pen's position 0.12 s ago); and for its stroke in the grid: how long since the pen
-      // reached the segment (ga), how far the stroke is drawn (g) and how fresh it is (gf)
+      // how far the pen has re-inked segment i this pass (p), how fresh (f), where the wet head starts (pw: the pen
+      // 0.12 s ago); for its stroke in the grid: time since the pen reached it (ga), how far drawn (g), freshness (gf)
       const inkOf = (i) => {
         const r = recs[i], run = r.run;
         let best = null;
@@ -2667,8 +2619,7 @@ SCENES.hanzi = (() => {
         return best;
       };
 
-      // ---- the stroke being re-inked shows in the grid (where it was written), with its number; both come in
-      //      over at least 0.15 s, however short the pen's segment
+      // ---- the stroke being re-inked shows in the grid, with its number (both come in over ≥ 0.15 s)
       if (tau >= 0 && out > 0) {
         for (const r of recs) {
           const k = inkOf(r.i);
@@ -2709,7 +2660,7 @@ SCENES.hanzi = (() => {
           const path = new Path2D();
           strokePart(r.src, r.cumA, 0, p * r.lenA, path);
           strokePath(path, 0.8 * smooth(seg(p, 0, 0.12)), 1.3);
-          // wet ink: the last 0.1 s of travel is brighter, and dries out behind the pen
+          // wet ink: the last 0.1 s of travel is brighter
           const pw = inOutSine(seg(t - 0.1, r.w0, r.w0 + r.wd));
           if (p - pw > 0.002) {
             const wet = new Path2D();
@@ -2721,9 +2672,8 @@ SCENES.hanzi = (() => {
         }
         const k = seg(t, r.sw, r.sw + SWIM);
         if (k < 1) {
-          // swimming: glide on a bowed path, turn and scale, bending on the way (the bend follows the
-          // linear swim progress, so it is spread over the trip instead of packed into its middle)
-          // (横 5 slides out level, under the eye, and curls up round it only near the end)
+          // swimming: glide on a bowed path, turn and scale, bending on the way (横 5 slides out level and curls up
+          // round the eye only near the end)
           const ke = inOutSine(k);
           if (r.g >= 0) morphGroup(r, ke, smooth(seg(k, 0.1, 1)), P);
           else if (i === 4) blend(r.ms, ke, smooth(seg(k, 0.3, 1)), smooth(seg(k, 0.35, 1)), ke, 0.3, 0, r.ms.bx, r.ms.by, P);
@@ -2732,8 +2682,7 @@ SCENES.hanzi = (() => {
           const path = new Path2D();
           path.moveTo(P[0][0], P[0][1]);
           for (let j = 1; j < r.n; j++) path.lineTo(P[j][0], P[j][1]);
-          // in its last tenth (within 2.5% of its place) it is drawn with the docked outline, at the same alpha
-          // and width by then, so its round ends never double up on its neighbours'
+          // in its last tenth it is drawn with the docked outline, so its round ends never double up on its neighbours'
           if (kd < 1) strokePath(path, lerp(0.8, dockA, kd), lerp(1.3, 1.25, kd));
           else { docked.addPath(path); anyDocked = true; }
           const gl = smooth(seg(k, 0.7, 1));
@@ -2743,11 +2692,10 @@ SCENES.hanzi = (() => {
           continue;
         }
         if (exiting) {
-          // the segment flies onto its sector of the ring (which turns a little), all of it shrinking
+          // the segment flies onto its sector of the ring (which turns a little), all of it shrinking; a piece that
+          // has to shrink does so early, one that has to grow (the eye's) lengthens near the ring
           const pe = seg(ex, r.ea, r.ea + 0.33), m = inOutSine(pe);
           const bx = CX + (r.me.bx - CX) * cs - (r.me.by - CY) * sn, by = CY + (r.me.bx - CX) * sn + (r.me.by - CY) * cs;
-          // a piece that has to shrink does so early (it never sweeps across the others at full length);
-          // one that has to grow (the eye's) opens into a short dash as it leaves, and lengthens near the ring
           const ks = r.grow ? inOutSine(seg(pe, 0.2, 1)) : inOutSine(seg(pe, 0, 0.85));
           blend(r.me, m, m, r.grow ? smooth(seg(pe, 0, 0.9)) : smooth(seg(pe, 0.1, 1)), ks, 0.15, swirl, bx, by, P);
           for (let j = 0; j < r.n; j++) map(P[j][0], P[j][1], P[j]);
@@ -2798,10 +2746,9 @@ SCENES.hanzi = (() => {
         if (hand > 0) arc(HX, HY, SPIN_R, 0, TAU, RING_ALPHA * hand, 2);
       }
 
-      // ---- the pen: re-traces the whale while waiting. On exit it lifts and flies, in the whale's own
-      //      (shrinking) frame, straight to the spot on the ring where it comes down, a little ahead of the
-      //      spinner's head; it lands at rest and writes the seventeenth stroke, the spinner's progress arc,
-      //      speeding up until it runs with the spinner (head first, then the tail) exactly as its own arc.
+      // ---- the pen: re-traces the whale while waiting. On exit it lifts and flies, in the whale's shrinking frame,
+      //      to where it comes down on the ring, a little ahead of the spinner's head; it lands at rest and writes
+      //      the seventeenth stroke, speeding up until it runs with the spinner exactly as its own arc
       const q = penAt(tp);
       {
         let x = q.x, y = q.y, down = q.down, a = penOn;
@@ -2810,8 +2757,7 @@ SCENES.hanzi = (() => {
           const om = handoffSpec ? TAU / (handoffSpec.dur / 1000) : TAU / 0.8;
           const Tw = (ARC - LAND) * EXIT, xh = 0.35;                    // the head is at full speed by 35%
           const xt = clamp01(xh - 1 + (2 * sw) / (om * Tw));          // the tail starts when it must
-          // where the head comes down: constant through the exit (the spinner turns at a steady rate)
-          const land = a0 + sw + om * ((LAND - ex) * EXIT + (Tw * xh) / 2);
+          const land = a0 + sw + om * ((LAND - ex) * EXIT + (Tw * xh) / 2);   // where the head comes down (constant)
           if (ex < LAND) {
             const w = smooth(seg(ex, 0.12, LAND)), o = [0, 0];
             map(lerp(q.x, CX + Math.cos(land) * R0, w), lerp(q.y, CY + Math.sin(land) * R0, w), o);
@@ -2847,23 +2793,20 @@ SCENES.hanzi = (() => {
 })();
 
 // ===== scene: SHADOW — a wire sculpture on a turntable: from the front the whale, from the side a circle ====
-// The whale outline is lifted onto a horizontal cylinder (z = ±√(R² − y²)): its front projection is the glyph,
-// its side projection one circle. A ring lifts off the turntable, eases into the wire's lowest point and prints the
-// wire bottom-up (fresh wire condenses in just below the ring) while the turntable coasts in from −150° and the
-// camera descends; at 0° the wire is the whale. On exit the inner details fade and the turntable turns on to +90°:
-// the outline turns edge-on into the circle, which shrinks onto the spinner track, and one of the two bands of light
-// running round the cylinder axis spins up into the spinner's progress arc.
-// PROTOTYPE for the spec (scratchpad only).
+// The whale outline is lifted onto a horizontal cylinder (z = ±√(R² − y²)): its front projection is the glyph, its
+// side projection one circle. A ring lifts off the turntable and prints the wire bottom-up while the turntable coasts
+// in from −150° and the camera descends; at 0° the wire is the whale. On exit the details fade and the turntable turns
+// on to +90°: the outline turns edge-on into the circle, which shrinks onto the spinner track, and one of two bands of
+// light running round the cylinder axis spins up into the spinner's progress arc.
 SCENES.shadow = (() => {
   const N = 900, NB = 10, Q = 10;
   // wire groups inside each depth bin: 0 solid, 1..NL−1 the print's soft front (alpha l/NL), NL the details fading out
   const NL = 8, G = NL + 1, NGL = 6;
-  const DEG = Math.PI / 180;
   const PSI0 = -150 * DEG, PITCH0 = 24 * DEG, PITCH_REST = 1.6 * DEG, T_COAST = 2.8;
   const XD = 1.1, TURN = 0.5, SWAP = 0.5;
   const W_I = TAU / 4.8, W_S = TAU / 0.8;
   // exit spin-up of the bands: a ramp of length L_UP from 75 to 450°/s whose start (A0..A1) is chosen on the first
-  // exit frame so that one of the two bands arrives exactly on the spinner's arc; the lock then only absorbs drift
+  // exit frame so that one band arrives exactly on the spinner's arc; the lock then only absorbs drift
   const K_UP = (W_S - W_I) * XD, L_UP = 0.3, A0 = 0.04, A1 = 0.48, LOCK = 0.86;
   const WIRE_W = 1.1, HALO_W = 3.6, TRIM = 0.5;
   const A_W = light ? 0.66 : 0.6, BACK = 0.3, S_REST = 0.25, MEET = 0.65;
@@ -2878,8 +2821,7 @@ SCENES.shadow = (() => {
   let psiNow = 0, phiNow = 0, prNow = 0;
   let spinU = 0, lastSpin = 0, lock = null;
 
-  const E = (u) => 1 - Math.pow(1 - u, 3) * (1 + 1.5 * u);   // coast: v(0) = 1.5, peak 1.74 at u = 1/6, lands with v = a = 0
-  const wrapPi = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);
+  const E = (u) => 1 - Math.pow(1 - u, 3) * (1 + 1.5 * u);   // coast: lands with v = a = 0
   // ∫₀ˣ smooth(seg(e, a, a + L_UP)) de: how far the spin-up has carried a band beyond its idle pace
   const upInt = (x, a) => {
     if (x <= a) return 0;
@@ -2896,7 +2838,7 @@ SCENES.shadow = (() => {
     return lerp(PITCH0, PITCH_REST + 0.5 * DEG * Math.sin(0.83 * t + 1.1), E(seg(t, 0, 2.6)));
   }
   // depth-shading strength: full in the tangle and while the camera is high, a residue at the front view, none at
-  // the level side view (where every strand lies on one circle)
+  // the level side view
   function shade(psi, phi) {
     const s2 = Math.sin(2 * psi) ** 2, c4 = Math.cos(psi) ** 4;
     return Math.min(1, s2 + S_REST * c4 * (1 - s2) + smooth(seg(phi, 3 * DEG, 12 * DEG)));
@@ -2905,11 +2847,8 @@ SCENES.shadow = (() => {
   function planeY(t) {
     return YT - (YT - R - 2 * S) * smooth(seg(t, 0.35, 0.74)) - (2 * R + 16 * S) * inOutSine(seg(t, 0.7, 1.45));
   }
-  // nozzle dot at a cut of segment i: it fades with how far the plane is from the two ends of the monotone stretch the
-  // cut lies on: the bottom its printed side runs down to and the top its open side climbs to. A new piece is born at a
-  // bottom and two cut ends merge at a top, so a dot grows out of every new piece and is gone before its cut meets
-  // another; and as those ends are fixed points of the wire, a piece being born or merging elsewhere changes no dot
-  // (a fade by the printed run's full extent jumped whenever a neighbouring piece was born or merged)
+  // nozzle dot at a cut of segment i: fades with the plane's distance from the two ends of the monotone stretch the
+  // cut lies on, so a dot grows out of every new piece and is gone before its cut meets another
   function tipFade(i, yP) {
     const fwd = Y[i + 1] >= yP;                  // the printed side lies ahead of the cut
     const dep = fwd ? lowF[i + 1] - yP : lowB[i] - yP, gap = fwd ? yP - highB[i] : yP - highF[i + 1];
@@ -2952,9 +2891,8 @@ SCENES.shadow = (() => {
       for (let k = 1; k < subs.length; k++) for (let i = subs[k].s; i < subs[k].e; i++) Z[i] = SIGNS[k] * zr(i);
       DMAX = 0;
       for (let i = 0; i < N; i++) { B[i] = Math.atan2(Y[i], Z[i]); DMAX = Math.max(DMAX, Math.hypot(X[i], Z[i])); }
-      // for every point, walking forward and backward round its loop: the y of the lowest point on screen reached while
-      // the wire keeps falling (low*, largest y) and of the highest reached while it keeps rising (high*, smallest y);
-      // a closed loop's last point repeats its first
+      // per point, walking forward and backward round its loop: the y reached while the wire keeps falling (low*) and
+      // while it keeps rising (high*); a closed loop's last point repeats its first
       lowF = new Float32Array(N); lowB = new Float32Array(N); highF = new Float32Array(N); highB = new Float32Array(N);
       for (const { s, e, closed } of subs) {
         const n = closed ? e - 1 - s : e - s, at = (j) => s + (((j % n) + n) % n);
@@ -2974,8 +2912,8 @@ SCENES.shadow = (() => {
         if (closed) { lowF[e - 1] = lowF[s]; lowB[e - 1] = lowB[s]; highF[e - 1] = highF[s]; highB[e - 1] = highB[s]; }
       }
       RT = 186 * S; YT = R + 58 * S; RIM = 9 * S; HF = 28 * S;
-      // dial and gizmo labels, rendered once: drawn as images they slide by sub-pixel steps (canvas text snaps to whole
-      // pixels, so moving text hops a pixel at a time); cells 0–11 hold 000…330, cells 12–14 X, Y, Z
+      // dial and gizmo labels, rendered once (drawn as images they move by sub-pixel steps): cells 0–11 hold
+      // 000…330, cells 12–14 X, Y, Z
       labels = document.createElement('canvas');
       labels.width = Math.ceil(LW * 15 * DPR); labels.height = Math.ceil(LH * DPR);
       const g = labels.getContext('2d');
@@ -3001,7 +2939,7 @@ SCENES.shadow = (() => {
       const cps = Math.cos(psi), sps = Math.sin(psi), cph = Math.cos(phi), sph = Math.sin(phi);
       const PW = (x, y, z) => [cx + sc * x, cy + sc * (y * cph + z * sph), -y * sph + z * cph];
       // a world-fixed horizontal circle of radius rr at height yy, drawn out from the front (a = 0) to ±span on a fixed
-      // grid of angles plus exact end points; the grid holds ±π/2, so the front/back split is exact and nothing slides
+      // grid of angles plus exact end points (the grid holds ±π/2, so the front/back split is exact)
       const circle = (rr, yy, span, yLow) => {
         const front = new Path2D(), back = new Path2D(), lower = yLow === undefined ? null : new Path2D();
         if (span > 1e-4) {
@@ -3095,7 +3033,7 @@ SCENES.shadow = (() => {
             const gx = CX - 262 * S, gy = CY + 150 * S, L = 20 * S * gz;
             const axes = [[12, cps, -sps * sph, -sps * cph], [13, 0, -cph, sph], [14, sps, cps * sph, cps * cph]];
             for (const [cell, ux, uy, d] of axes) {
-              // brightness follows the axis depth continuously; a label fades as its axis turns end-on
+              // brightness follows the axis depth; a label fades as its axis turns end-on
               const a = lerp(0.22, 0.5, smooth(clamp01(0.5 + d / 0.3))) * gz;
               line(gx, gy, gx + ux * L, gy + uy * L, a);
               const la = a * 0.9 * smooth(clamp01(Math.hypot(ux, uy) / 0.35));
@@ -3119,7 +3057,7 @@ SCENES.shadow = (() => {
         sd[i] = clamp01(((-y * sph + z1 * cph) / DMAX + 1) / 2);
       }
 
-      // ---- two bands of light running round the cylinder axis: pure functions of t and ex, no clock state
+      // ---- two bands of light running round the cylinder axis: pure functions of t and ex
       let hFree = W_I * t;
       const bandA = [1, 1].map(() => smooth(seg(t, 2.3, 3.1)));
       if (exiting) {
@@ -3147,7 +3085,7 @@ SCENES.shadow = (() => {
       const blen = lerp(LEN_I, spinnerSweep(), smooth(seg(ex, 0.5, 0.86)));
       const kSolid = smooth(seg(ex, 0.55, 0.86));
       // the lit pieces of segment i (parameter range f0..f1), clipped at the exact head and tail angles; a band rises
-      // over its first 22 % (a soft attack: a level stretch of wire, all at one β, brightens over ~0.1 s, not at once)
+      // over its first 22 % (soft attack)
       const bandSeg = (i, f0, f1, mlt, emit) => {
         const d = wrapPi(B[i + 1] - B[i]);
         for (let j = 0; j < 2; j++) {
@@ -3166,9 +3104,8 @@ SCENES.shadow = (() => {
         }
       };
 
-      // In the exit the depth fog is held through the turn (no dim-then-flare). As the strands close in, near and far
-      // meet at one level (the near side dims as much as the far side brightens, so the ink keeps falling); from then
-      // on every bin has the same alpha and the wire is drawn as one union, with no halo stubs where strands overlap.
+      // In the exit the depth fog is held through the turn. As the strands close in, near and far meet at one level;
+      // from then on every bin has the same alpha and the wire is drawn as one union (no halo stubs where strands overlap).
       const s = exiting ? Math.max(shade(psi, phi), smooth(seg(ex, 0.04, 0.2))) : shade(psi, phi);
       const meet = smooth(seg(ex, 0.3, 0.42)), union = meet >= 1;
       const level = lerp(MEET, 1, smooth(seg(ex, 0.5, 0.8)));
@@ -3190,7 +3127,7 @@ SCENES.shadow = (() => {
         const tips = [];
         const path = (arr, k) => arr[k] || (arr[k] = new Path2D());
         // one run of segments in one bin and group: the wire whole; its halo trimmed by TRIM px at each open end, so a
-        // bin boundary never erases the end of the neighbouring run of the same strand, yet the run is covered to its ends
+        // bin boundary never erases the end of the neighbouring run of the same strand
         const emit = (run, key, closed) => {
           const p = path(fg, key);
           p.moveTo(run[0][0], run[0][1]);
@@ -3251,8 +3188,7 @@ SCENES.shadow = (() => {
               const fw = smooth(clamp01(h / HF));
               const lg = Math.round(fw * (1 - smooth(seg(h, 20 * S, 46 * S))) * NGL);
               if (lg > 0) { const p = path(glow, lg); p.moveTo(x1, y1); p.lineTo(x2, y2); }
-              // the plane stops 14S above the wire, still half way through the soft front: the front settles in with
-              // the glow, so the wire is solid when the print ends (else its top doubled in brightness at 1.45 s)
+              // the plane stops 14S above the wire: the front settles in with the glow, so the wire is solid when the print ends
               const l = Math.round((1 - (1 - fw) * ga) * NL);
               if (l === 0) { flush(); continue; }
               if (l < NL) g = l;
@@ -3316,14 +3252,12 @@ SCENES.shadow = (() => {
 })();
 
 // ===== scene: ECHO — a ring sonar on the seabed; the whale exists only as reflected sound ============
-// The sonar sits exactly where the boot spinner will be. Its active sector fires directional pings; where a
-// front crosses the whale the outline glints (brightest where it faces the sonar) and slowly fades, drifting
-// particles sparkle except in the whale's acoustic shadow, and the near specular part of each echo slides
-// back down the radials into the hub, which answers with a ripple round its staves. On exit the whole whale
-// is the last echo: it swells, dives down its radials and is taken in by the hub, whose staves answer and
-// fold away; the ring lights all round (listening), then dims back to the track and leaves the progress arc.
+// The sonar sits where the boot spinner will be. Its active sector fires pings; where a front crosses the whale the
+// outline glints and slowly fades, drifting particles sparkle except in the whale's acoustic shadow, and the near part
+// of each echo slides back down the radials into the hub, which answers with a ripple round its staves. On exit the
+// whole whale is the last echo: it swells, dives down its radials into the hub; the ring lights all round, then dims
+// back to the track and leaves the progress arc.
 SCENES.echo = (() => {
-  const DEG = Math.PI / 180;
   const N = 960, NST = 36, NP = 180, NBIN = 361, NB = 48, NG = 24, NF = 16;
   const BEAM = 36 * DEG, SIDE = 22 * DEG, SW0 = 72 * DEG, SW1 = 120 * DEG;
   const SCAN = 38 * DEG, SCAN_T = 6.4, PERIOD = 0.8;
@@ -3340,7 +3274,6 @@ SCENES.echo = (() => {
   let rngTxt = '---.-', pingNow = 0, brgNow = '000.0';
 
   const smoother = (k) => k * k * k * (k * (k * 6 - 15) + 10);
-  const wrapPi = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);
   const binOf = (b) => Math.max(0, Math.min(NBIN - 1, Math.round(b / DEG / 0.5) + 180));
   const pingT = (k) => (k < 3 ? P0[k] : P0[2] + PERIOD * (k - 2));
   function lastPingIdx(t) {
@@ -3349,7 +3282,7 @@ SCENES.echo = (() => {
     if (t < P0[2]) return 1;
     return 2 + Math.floor((t - P0[2]) / PERIOD);
   }
-  // beam axis, as a bearing (0 = straight up, positive = clockwise): centre, left, right, then a slow swing
+  // beam axis as a bearing (0 = up, positive = clockwise): centre, left, right, then a slow swing
   function steerAt(t) {
     if (t < 0.72) return 0;
     if (t < 1.12) return -SCAN * inOutSine(seg(t, 0.72, 1.12));
@@ -3363,22 +3296,20 @@ SCENES.echo = (() => {
     if (a < BEAM + SIDE) { const s = Math.sin((Math.PI * (a - BEAM)) / SIDE); return 0.14 * s * s; }
     return 0;
   }
-  // a front's light on the outline: a fast specular flash over a slow afterglow (×A, peak ≈ 0.85 at about 0.1 s
-  // once eased in; see the outline pass)
+  // a front's light on the outline: a fast specular flash over a slow afterglow
   const glint = (u) => 0.75 * Math.exp(-u / 0.16) + 0.5 * Math.exp(-u / 1.6);
   // a particle's sparkle behind a front: swells over 0.12 s, then fades
   const spark = (u) => (u <= 0 ? 0 : smooth(Math.min(1, u / 0.12)) * Math.exp(-u / 0.35));
-  // a swell with a rounded peak (zero slope at the start and at the top), normalised to peak at 1
+  // a swell with a rounded peak, normalised to peak at 1
   function mkPulse(rise, tau) {
     const f = (u) => (u <= 0 ? 0 : smooth(Math.min(1, u / rise)) * Math.exp(-u / tau));
     let m = 0;
     for (let k = 1; k <= 400; k++) m = Math.max(m, f((rise * k) / 400));
     return (u) => f(u) / m;
   }
-  const txPulse = mkPulse(0.13, 0.2);   // the hub transmitting: peaks as the front clears the staves
+  const txPulse = mkPulse(0.13, 0.2);   // the hub transmitting
   const rvPulse = mkPulse(0.14, 0.3);   // the hub hearing an echo
-  // a dive's progress: eases in over the first half, then runs at a constant rate (C2 at the joint), so in
-  // log radius every point keeps a constant ratio per frame until it is taken in
+  // a dive's progress: eases in over the first half, then runs at a constant rate (C2 at the joint)
   const diveQ = (s) => { if (s < 0.5) { const u = 2 * s; return (2 / 3) * u * u * u * (1 - u / 2); } return (s - 0.25) / 0.75; };
 
   function ghostOf(k, st) {
@@ -3389,8 +3320,7 @@ SCENES.echo = (() => {
       const a0 = beam(TH[i] - st) * AMP[i] * Math.pow(FACE[i], 1.5) * smooth(seg(N01[i], 0.55, 0.25));
       A0[i] = a0 * smooth(seg(a0, 0.08, 0.22));
     }
-    // blurred along the closed silhouette (±6 points, triangular), so a sliver stays one stroke with tapered
-    // ends instead of breaking at a concave corner into two marks
+    // blurred along the closed silhouette (±6 points, triangular), so a sliver stays one stroke with tapered ends
     const L = n0 - 1;   // the loop's last point repeats its first
     let far = 0, sw = 0, sd = 0, sth = 0;
     for (let i = 0; i < n0; i++) {
@@ -3409,8 +3339,7 @@ SCENES.echo = (() => {
   }
 
   // how deep (0..1) range r at bearing b lies in the whale's acoustic shadow (full `ramp` past its first surface),
-  // with a ±3° penumbra (triangular over the 0.5° bins), so a front grazing a flank fades along its arc and a
-  // drifting particle eases in and out of the shadow instead of being cut at the tangent bearing
+  // with a ±3° penumbra (triangular over the 0.5° bins)
   function shadow(r, b, ramp) {
     const c = binOf(b);
     let s = 0;
@@ -3418,8 +3347,8 @@ SCENES.echo = (() => {
     return s / 49;
   }
 
-  // evidence: the strongest hit each point has had, which sets its resting brightness. A hit counts once its
-  // light has fully risen (RISE after the front); until then the outline pass eases toward it
+  // evidence: the strongest hit each point has had, which sets its resting brightness; a hit counts once its light
+  // has fully risen (RISE after the front)
   function addEvidence(t, k) {
     const tk = pingT(k), st = steerAt(tk);
     for (let i = 0; i < N; i++) {
@@ -3429,9 +3358,8 @@ SCENES.echo = (() => {
     }
   }
 
-  // segment buckets: one stroke per alpha level; consecutive segments in a level continue one polyline.
-  // Butt ends with round joins: where two levels meet, their ends abut at the shared vertex instead of
-  // overlapping (round caps there would composite twice and leave a bright bead at every level change).
+  // segment buckets: one stroke per alpha level; consecutive segments in a level continue one polyline. Butt ends
+  // with round joins, so where two levels meet their ends abut instead of compositing twice.
   const mk = (n) => Array.from({ length: n }, () => []);
   function strokeB(bk, amax, wOf) {
     ctx.lineCap = 'butt';
@@ -3490,8 +3418,8 @@ SCENES.echo = (() => {
         TH[i] = Math.atan2(dx, -dy);
         dmin = Math.min(dmin, d); dmax = Math.max(dmax, d);
       }
-      // the dive's log-radius slope per point: a shared ratio toward the hub, keeping BETA of the squash a
-      // pure radial collapse would give (that turned the whale into a tulip, then a crown of radial hairs)
+      // the dive's log-radius slope per point: a shared ratio toward the hub, keeping BETA of the squash a pure
+      // radial collapse would give
       DM = 0.5 * (dmin + dmax);
       for (let i = 0; i < N; i++) {
         N01[i] = (D[i] - dmin) / (dmax - dmin);
@@ -3543,14 +3471,14 @@ SCENES.echo = (() => {
       }
       if (live.length) pingNow = live[live.length - 1].k + 1;
 
-      // ---- seabed: a hairline with a ground hatch and a range scale, drawn outward from the sonar over two
-      // faint sub-bottom strata; on exit it all retracts into the sonar
+      // ---- seabed: a hairline with a ground hatch and a range scale, drawn outward from the sonar over two faint
+      // sub-bottom strata; on exit it all retracts into the sonar
       {
         const ysb = hy + 32 * S;
         const half = 300 * S * inOutSine(seg(t, 0.1, 0.9)) * (1 - inOutCubic(seg(ex, 0, 0.5)));
         const a = 0.2 * (1 - smooth(seg(ex, 0.25, 0.5)));
         if (half > 1 && a > 0.003) {
-          // strata: static gentle undulations sampled at fixed x, so nothing crawls while they grow
+          // strata: static undulations sampled at fixed x, so nothing crawls while they grow
           const aS = 1 - smooth(seg(ex, 0.1, 0.4));
           for (let k = 0; k < 2; k++) {
             const hs = half * [0.9, 0.78][k], ak = [0.07, 0.045][k] * aS, yk = ysb + [34, 70][k] * S, ph = [0.7, 2.3][k];
@@ -3583,9 +3511,8 @@ SCENES.echo = (() => {
             }
             ctx.stroke();
           }
-          // range scale: a tick every 5 m (50S), taller every 10 m, labelled at 10 and 20 m. Each mark fades in
-          // over 0.3 s once the growing line has passed it (its label 0.05 s behind); on exit the whole scale
-          // fades out before the retracting line gets back to the outermost ticks (at ex ≈ 0.17)
+          // range scale: a tick every 5 m (50S), taller every 10 m, labelled at 10 and 20 m; each mark fades in over
+          // 0.3 s once the growing line has passed it, and the scale leaves at the start of the exit
           const aR = 1 - smooth(seg(ex, 0, 0.14));
           for (let m = 1; m <= 5; m++) {
             const x = 50 * S * m;
@@ -3649,10 +3576,8 @@ SCENES.echo = (() => {
       }
       strokeB(bF, 0.72 * LK, (k) => 1 + 0.4 * k);
 
-      // ---- whale outline: per-point glints over a resting floor that grows with the evidence
-      // A hit is eased in over RISE (zero slope at the start) from the point's resting level before it toward
-      // max(light, the resting level after it), so neither the flash nor the new level is switched on halfway up
-      // an attack; at RISE the hit joins the evidence and the two forms meet exactly
+      // ---- whale outline: per-point glints over a resting floor that grows with the evidence. A hit is eased in over
+      // RISE from the point's resting level toward max(light, the resting level after it); at RISE it joins the evidence
       for (const p of live) addEvidence(t, p.k);
       for (let i = 0; i < N; i++) {
         const br = 0.52 * (0.9 + 0.1 * Math.sin(t * 0.7 + i * 0.05));
@@ -3696,12 +3621,11 @@ SCENES.echo = (() => {
       }
       strokeB(bG, 0.42 * LK, () => 1);
 
-      // ---- the whale: in place while idle; on exit the last echo swells, dives down its radials and is taken
-      // in by the hub before it reaches the staves
+      // ---- the whale: in place while idle; on exit the last echo swells, dives down its radials and is taken in by
+      // the hub before it reaches the staves
       {
         const WA = light ? 1 : 0.95;
-        // the whole whale also fades as one piece once it is small (its mid-range scale 0.3 → 0.08, ex ≈ 0.41–0.58),
-        // so its back and tail never linger above the hub as a fragment after the belly has been taken in
+        // the whole whale also fades as one piece once it is small, so its back and tail never linger as a fragment
         const fW = ex > 0 ? smooth(seg(Math.exp(diveQ(seg(ex, 0.09, 0.09 + DIVE)) * Math.log((3 * S) / DM)), 0.08, 0.3)) : 1;
         let pa = -1, pxp = 0, pyp = 0;
         for (let i = 0; i < N; i++) {
@@ -3759,13 +3683,11 @@ SCENES.echo = (() => {
           const ca = be - Math.PI / 2;
           if (len > 0.05) line(hx + Math.cos(ca) * sIn, hy + Math.sin(ca) * sIn, hx + Math.cos(ca) * (sIn + len), hy + Math.sin(ca) * (sIn + len), a);
         }
-        // the active sector: on exit it opens round the whole ring (listening for the last echo); then the lit
-        // ring dims back to the track under the spinner arc's head, which brightens into the progress arc, so
-        // nothing on the ring ever moves faster than the spinner
+        // the active sector: on exit it opens round the whole ring (listening); then the lit ring dims back to the
+        // track under the spinner arc's head, which brightens into the progress arc
         const secW = lerp(1.4, 2, smooth(seg(ex, 0.3, 0.8)));
         if (ex < 0.42) {
-          // opening: the whole ring lights up beneath the sector, which widens a little and melts into it, so no
-          // edge sweeps round faster than the steer; at kOpen 1 it is the same full ring the close starts from
+          // opening: the whole ring lights up beneath the sector, which widens a little and melts into it
           const kOpen = smoother(seg(ex, 0.06, 0.4));
           const aU = 0.7 * kOpen;
           if (aU > 0.003) {
@@ -3784,7 +3706,7 @@ SCENES.echo = (() => {
             ctx.lineWidth = secW;
             ctx.beginPath(); ctx.arc(hx, hy, ringR, 0, TAU); ctx.closePath(); ctx.stroke();
           }
-          // the head on top, so the two together read aH there: the ring alone at kClose 0, the arc alone at 1
+          // the head on top, so the two together read aH there
           arc(hx, hy, ringR, spinnerAngle(t), spinnerSweep(), 1 - (1 - aH) / Math.max(1e-3, 1 - aU), secW);
         }
       }
@@ -3806,12 +3728,12 @@ let t0 = 0;
 let exitAt = -1;
 let exitResolve = null;
 const EXIT_DUR = scene.exitDur || 1.05;
-// The boot card's text fades in only once the scene has collapsed onto the spinner ring (so nothing of
-// the scene runs through it), and the exit is over when the text is fully in (its CSS transitions: CARD_IN).
+// The boot card's text fades in once the scene has collapsed onto the ring (CARD_AT); the exit is over when the
+// text is fully in (its CSS transitions: CARD_IN).
 const CARD_AT = 0.8, CARD_IN = 0.42;
 let cardAt = -1;
-// A scene that brings the spinner's arc in itself (scene.spinnerIn: exit progress where it lands) draws that
-// arc through ex 1 and boot draws none; the DOM spinner only takes over from spinnerIn, so there are never two.
+// A scene with spinnerIn draws the spinner's arc itself through ex 1; boot draws none, and the DOM spinner
+// only takes over from spinnerIn, so there are never two.
 const SPIN_IN = scene.spinnerIn || 0;
 
 function tickHud(t) {
@@ -3841,7 +3763,7 @@ function frame(now) {
     // the converged ring cross-fades into a DOM spinner that carries the main window's own CSS
     canvas.style.opacity = String(1 - seg(ex, Math.max(0.86, SPIN_IN), 0.99));
     spinEl.style.opacity = String(seg(ex, Math.max(0.78, SPIN_IN), 0.97));
-  } else if (!SPIN_IN) drawSpinnerHead(t, ex, 0.55);   // a spinnerIn scene draws the arc itself through ex 1
+  } else if (!SPIN_IN) drawSpinnerHead(t, ex);
 
   if (!titleShown && t > (scene.titleAt || 1.95) && !exiting) showTitle();
   if (titleShown) tickStatus(t);
@@ -3855,10 +3777,9 @@ function frame(now) {
 }
 
 // ---------------------------------------------------------------- exact hand-off
-// The main process measures the web app's boot card in the freshly shown main window (positions,
-// computed fonts and colours, spinner geometry, its progress arc and rotation phase) and passes the
-// record here. The splash then converges onto those exact coordinates and finishes on a replica
-// built from the same computed CSS, so the final window fade swaps identical pixels.
+// The main process measures the web app's boot card in the main window (positions, computed fonts and colours,
+// spinner geometry, arc and rotation phase). The splash converges onto those coordinates and finishes on a
+// replica built from the same computed CSS, so the window fade swaps identical pixels.
 const wordEl = handoff.querySelector('.wordmark');
 const hintEl = handoff.querySelector('.hint');
 const spinEl = document.getElementById('handoff-spin');
@@ -3911,15 +3832,15 @@ function beginExit(spec, resolve) {
   exiting = true;
   applySpec(spec);
   exitAt = (performance.now() - t0) / 1000;
-  window.__dshExitAt = exitAt;   // read by the preview lab (preview/lab.html)
+  window.__dshExitAt = exitAt;   // read by preview/lab.html
   exitResolve = resolve;
   titleBox.classList.add('out');
   hud.classList.add('out');
 }
 
 let exitRequested = false;
-// Main process: `await __dshSplashExit(record)` → the scene converges; then `__dshSplashSync(record)`
-// refreshes the progress arc and phase just before the window fades.
+// Main process: `await __dshSplashExit(record)` → the scene converges; `__dshSplashSync(record)` refreshes the
+// arc and phase just before the window fades.
 window.__dshSplashExit = (spec) => new Promise((resolve) => {
   if (exitRequested) return resolve();
   exitRequested = true;

@@ -26,6 +26,9 @@ a 20 px spinner, "Loading plugins…"). Sources: `splash/src/core.js` (shared he
     with a comet highlight.
   - `whaleContour(wh, N)` gives N evenly spaced outline points, with `breaks` marking subpath starts.
   - `whaleMask(wh, blurPx)` gives a coverage lookup (x, y) → 0..1. Call it once, in `layout()`.
+  - Primitives: `line`, `arc`, `dot`, `text`, `strokePath(path2d, a, w)`; all take an alpha and skip it below 0.003.
+  - Math: `seg`, `lerp`, `clamp01`, the eases, `hash`, `fract`, `wrapPi` (angle into (−π, π]), `cumLen(points)`,
+    `TAU`, `DEG`, `pad`.
 - Telemetry: `boot.js` draws the corner brackets and the HUD corners for you: scene label and index,
   version, window size, time and frame. Your scene supplies `readout(t)`: two short lines of monospace
   data in the lower right, e.g. `PSR B1919+21\nROW 12/52`. It should change while the scene runs.

@@ -1,12 +1,10 @@
 // ===== scene: HANZI — 鲸 written on a 米字格; its sixteen strokes swim into the whale ===========
-// 鲸 ('whale') is written stroke by stroke in single-line Fangsong lettering, with stroke-order numbers.
-// Then each stroke lifts off and swims (gliding, turning, scaling and bending) onto its own segment of the
-// whale's outline: 亠 becomes the tail, 口 the eye, 田 the belly crescent. While waiting, one pen re-traces the
-// whale in the stroke order of 鲸, and the stroke it re-inks shows faintly in the grid with its number. On exit
-// the sixteen segments gather into a dashed 〇 (U+3007) that closes into the spinner track, and the pen comes
-// down to write a seventeenth stroke: the progress arc.
+// 鲸 is written stroke by stroke (single-line Fangsong, with stroke-order numbers); then each stroke swims (gliding,
+// turning, scaling, bending) onto its own piece of the whale's outline. While waiting, a pen re-traces the whale in
+// stroke order and the stroke it re-inks shows faintly in the grid. On exit the pieces gather into a dashed 〇 that
+// closes into the spinner track, and the pen writes a seventeenth stroke: the progress arc.
 SCENES.hanzi = (() => {
-  // 鲸 in a 1000-unit em (y down), GB stroke order; read off a skeleton of FangSong, serifs dropped.
+  // 鲸 in a 1000-unit em (y down), GB stroke order; skeleton of FangSong, serifs dropped
   const STROKES = [
     ['撇', [301, 62], [297, 126], [250, 213], [200, 297], [152, 368], [88, 446]],
     ['横撇', [248, 252], [374, 246], [362, 280], [338, 318], [306, 388]],
@@ -26,8 +24,7 @@ SCENES.hanzi = (() => {
     ['点', [760, 656], [840, 724], [900, 796]],
   ];
   const CORNER = { '横撇': 1, '横折': 1, '竖钩': 1 };
-  // Each stroke's piece of the outline: [loop, from, to] in fractions of that loop's length from its first
-  // point (loops as makeWhale sorts them: 0 body, 1 crescent, 2 curl, 3 eye).
+  // each stroke's piece of the outline: [loop, from, to] as fractions of the loop's length (0 body, 1 crescent, 2 curl, 3 eye)
   const TARGET = [
     [0, 0.3003, 0.4833], [0, 0.1600, 0.3003], [0, 0.4833, 0.5523], [1, 0.4702, 0.9404],
     [2, 0.47, 1.47], [1, 0.1959, 0.4702], [1, 0.9404, 1.1959], [0, 0.5523, 0.6731],
@@ -37,12 +34,10 @@ SCENES.hanzi = (() => {
   // stroke-order numbers, hand-placed clear of the lines (em units)
   const NUM = [[301, 38], [270, 228], [184, 426], [226, 380], [184, 514], [338, 366], [184, 659], [80, 846],
     [612, 46], [452, 276], [548, 416], [592, 374], [548, 574], [708, 580], [556, 626], [742, 638]];
-  // pieces that swim as one rigid group (shared frame: no turn, no bow): 口 shrinks into the eye, 田's frame
-  // squashes into the belly crescent
+  // pieces that swim as one rigid group: 口 → the eye, 田's frame → the belly crescent
   const GROUPS = [[10, 11, 12], [3, 5, 6]];
   const groupOf = (i) => GROUPS.findIndex((g) => g.includes(i));
-  // Departures, 50 ms apart, in an order that keeps the paths from crossing: 横 10 clears the tail's place
-  // before 横撇 2 and 点 9 arrive there; 田 and 口 are out of the way before 横 5 curls up beside the eye.
+  // departure slots, 50 ms apart, ordered so the paths never cross
   const SLOT = [1, 2, 3, 4, 8, 4, 4, 6, 9, 0, 5, 5, 5, 10, 11, 12];
   const N = STROKES.length;
   const ws = (i) => 0.30 + 0.066 * i - 0.0006 * i * i;           // writing start
@@ -56,7 +51,6 @@ SCENES.hanzi = (() => {
   let recs = [], pen = [], TP = 1;
   let readLine = '', lastStroke = 1;
 
-  const wrapPi = (a) => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
   function catmull(kind, pts) {
     const c = CORNER[kind] || -1, out = [];
     const runs = c > 0 ? [pts.slice(0, c + 1), pts.slice(c)] : [pts];
@@ -73,7 +67,6 @@ SCENES.hanzi = (() => {
     }
     return out;
   }
-  function cumLen(p) { const c = [0]; for (let i = 1; i < p.length; i++) c.push(c[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])); return c; }
   function resample(p, n) {
     const cum = cumLen(p), L = cum[cum.length - 1], out = [];
     let j = 1;
@@ -100,7 +93,7 @@ SCENES.hanzi = (() => {
       },
     };
   }
-  // minimum-cost assignment of rows to columns (Hungarian method, O(n³)); returns the column of each row
+  // minimum-cost assignment of rows to columns (Hungarian method); returns the column of each row
   function assign(c) {
     const n = c.length, u = new Float64Array(n + 1), v = new Float64Array(n + 1), p = new Int32Array(n + 1), way = new Int32Array(n + 1);
     for (let i = 1; i <= n; i++) {
@@ -126,7 +119,7 @@ SCENES.hanzi = (() => {
     for (let j = 1; j <= n; j++) col[p[j] - 1] = j - 1;
     return col;
   }
-  // a group's frame: centroid and RMS radius (groups never turn)
+  // a group's frame: centroid and RMS radius
   function frameOf(P) {
     let cx = 0, cy = 0;
     for (const q of P) { cx += q[0]; cy += q[1]; }
@@ -136,7 +129,7 @@ SCENES.hanzi = (() => {
     return { x: cx, y: cy, s: Math.sqrt(ss / P.length) || 1e-3 };
   }
   const local = (P, f) => P.map(([x, y]) => [(x - f.x) / f.s, (y - f.y) / f.s]);
-  // A polyline as its edges: directions (unwrapped along the line), their length-weighted mean, log lengths.
+  // a polyline as its edges: directions (unwrapped), their length-weighted mean, log lengths, centroid
   function edges(P) {
     const m = P.length - 1, ang = new Float64Array(m), ln = new Float64Array(m);
     let sl = 0, sa = 0, cx = 0, cy = 0;
@@ -150,16 +143,15 @@ SCENES.hanzi = (() => {
     for (const q of P) { cx += q[0]; cy += q[1]; }
     return { ang, ln, mean: sa / sl, cx: cx / P.length, cy: cy / P.length };
   }
-  // A → B blended by edge direction and length, not point by point: a line curls up and a loop opens
-  // without collapsing. The mean direction is the piece's heading (it turns by the wrapped difference, plus
-  // any extra turn, never re-wrapped); the deviations from it are its bend.
+  // A → B blended by edge direction and length (a line curls up, a loop opens, nothing collapses): the mean
+  // direction is the heading, the deviations from it the bend
   function pair(A, B) {
     const a = edges(A), b = edges(B), m = a.ang.length;
     const dA = new Float64Array(m), dB = new Float64Array(m);
     for (let j = 0; j < m; j++) { dA[j] = a.ang[j] - a.mean; dB[j] = b.ang[j] - b.mean; }
     return { n: A.length, dA, dB, lA: a.ln, lB: b.ln, head: a.mean, turn: wrapPi(b.mean - a.mean), ax: a.cx, ay: a.cy, bx: b.cx, by: b.cy };
   }
-  // pose at: kc centroid (on a bowed path to bx, by), kt heading, kh bend, ks size
+  // pose: kc centroid (on a bowed path to bx, by), kt heading, kh bend, ks size
   function blend(M, kc, kt, kh, ks, bow, extra, bx, by, out) {
     const head = M.head + (M.turn + extra) * kt;
     let x = 0, y = 0, sx = 0, sy = 0;
@@ -178,7 +170,7 @@ SCENES.hanzi = (() => {
     const py = u * u * M.ay + 2 * kc * u * my + kc * kc * by - sy / M.n;
     for (let j = 0; j < M.n; j++) { out[j][0] += px; out[j][1] += py; }
   }
-  // a group piece: the shared frame glides and scales (log), the piece's shape blends inside it
+  // a group piece: the shared frame glides and scales (log), the shape blends inside it
   function morphGroup(r, k, kh, out) {
     const A = r.fa, B = r.fb;
     const cx = lerp(A.x, B.x, k), cy = lerp(A.y, B.y, k), s = Math.exp(lerp(Math.log(A.s), Math.log(B.s), k));
@@ -205,15 +197,9 @@ SCENES.hanzi = (() => {
     const k = (s - cum[j - 1]) / (cum[j] - cum[j - 1] || 1);
     return [lerp(P[j - 1][0], P[j][0], k), lerp(P[j - 1][1], P[j][1], k)];
   }
-  function strokePath(path, a, w) {
-    if (a <= 0.003) return;
-    ctx.strokeStyle = col(a);
-    ctx.lineWidth = w;
-    ctx.stroke(path);
-  }
   const iu = (z) => z * z * z - (z * z * z * z) / 2;               // ∫ smooth
-  // A run's clock: its speed rises (as a quarter sine) over its first `a` of time, holds, and falls the
-  // same way over its last `a`. trap: raw time 0..1 → share of the run's time budget; trapInv: the inverse.
+  // a run's clock: speed rises (quarter sine) over its first `a` of time, holds, falls over its last `a`.
+  // trap: raw time 0..1 → share of the run's time budget; trapInv: the inverse
   const rampI = (z) => (2 / Math.PI) * (1 - Math.cos((Math.PI / 2) * z));
   function trap(raw, a) {
     const r = clamp01(raw), m = 2 / Math.PI, T = 1 - 2 * a + 2 * a * m;
@@ -231,12 +217,12 @@ SCENES.hanzi = (() => {
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (run.tw[m] <= tt) lo = m; else hi = m; }
     return (run.L * (lo + (tt - run.tw[lo]) / (run.tw[hi] - run.tw[lo] || 1))) / run.K;
   }
-  // pass time at which an ink run reaches arc length s (the inverse of sAt)
+  // pass time at which an ink run reaches arc length s (inverse of sAt)
   function timeAt(run, s) {
     const f = clamp01(s / run.L) * run.K, k = Math.min(run.K - 1, Math.floor(f));
     return run.t0 + trapInv(lerp(run.tw[k], run.tw[k + 1], f - k) / run.tw[run.K], run.a) * run.d;
   }
-  // the idle pen at pass time tau: position, how far down it is (1 inking, 0 lifted), the stroke it inks
+  // the idle pen at pass time tau: position, how far down (1 inking, 0 lifted), the stroke it inks
   function penAt(tau) {
     for (const ph of pen) {
       if (tau > ph.t0 + ph.d) continue;
@@ -263,7 +249,7 @@ SCENES.hanzi = (() => {
     label: 'HANZI',
     readyAt: 3.4,
     titleAt: 2.1,
-    spinnerIn: ARC,    // the seventeenth stroke is the spinner's arc: the real one waits until it has landed
+    spinnerIn: ARC,
     layout() {
       G = 180 * S;
       R0 = 120 * S;
@@ -297,10 +283,9 @@ SCENES.hanzi = (() => {
         const fa = frameOf(grp.flatMap((i) => recs[i].src)), fb = frameOf(grp.flatMap((i) => recs[i].dst));
         for (const i of grp) { const r = recs[i]; r.fa = fa; r.fb = fb; r.la = local(r.src, fa); r.lb = local(r.dst, fb); }
       }
-      // exit: each segment gets a 1/16 sector of a ring (radius R0 at whale scale): the assignment (and the
-      // ring's phase) with the least total travel, so no two pieces' paths cross; it runs along its sector in
-      // the direction that needs the smaller turn (counting the ring's own swirl, about 0.3 rad by the time
-      // the pieces land), then the shorter trip
+      // exit: each segment gets a 1/16 sector of a ring (radius R0): the assignment and ring phase with the least
+      // total travel, so no paths cross; each runs along its sector in the direction needing the smaller turn
+      // (counting the ring's swirl, ≈0.3 rad by landing), then the shorter trip
       const dock = recs.map((r) => edges(r.dst));
       const D = TAU / N;
       let best = null, bestCost = Infinity;
@@ -325,12 +310,11 @@ SCENES.hanzi = (() => {
         r.me = pair(P, (opts[0].cost <= opts[1].cost ? opts[0] : opts[1]).Q);
         r.grow = r.me.lB[0] > r.me.lA[0];
       });
-      // launch order: the outline first (it opens into the dashed ring where it stands), then the eye, curl
-      // and crescent fly out through the gaps it leaves
+      // launch order: the outline first, then the eye, curl and crescent fly out through the gaps it leaves
       const launch = [0, 1, 2, 7, 8, 9, 13, 14, 15, 3, 5, 6, 4, 10, 11, 12];
       launch.forEach((ri, j) => { recs[ri].ea = 0.03 + 0.013 * j; });
-      // The idle pen inks the segments in stroke order. Where a segment ends at the next one's start it carries
-      // straight on (one run, no lift); otherwise it lifts and flies. Along a run it slows into tight bends.
+      // The idle pen inks the segments in stroke order; where one ends at the next one's start it carries on (one
+      // run), otherwise it lifts and flies. Along a run it slows into tight bends.
       pen = [];
       let T = 0;
       for (let i = 0; i < N;) {
@@ -348,10 +332,8 @@ SCENES.hanzi = (() => {
           for (let j = P.length ? 1 : 0; j < d.length; j++) P.push(d[j]);
         }
         const cum = cumLen(P), L = cum[cum.length - 1];
-        // its speed along the run (1 = cruising): slowed where the path bends tightly (curvature over ±4 px:
-        // a 12 px radius or a 20° kink halves it, a tip brings it down to 18%), the slowing reaching 32 px ahead
-        // and behind on an S-curve so the pen eases into a tip and out of it; tw is the (relative) time to each
-        // 1-px sample
+        // speed along the run (1 = cruising): halved by a 12 px radius or a 20° kink, 18% at a tip; the slowing
+        // reaches 32 px ahead and behind on an S-curve. tw: relative time to each 1-px sample
         const K = Math.max(8, Math.ceil(L / S)), h = 4 * S, W = Math.max(1, Math.round((32 * S * K) / L));
         const vr = new Float64Array(K + 1).fill(1);
         for (let k = 0; k <= K; k++) {
@@ -365,11 +347,11 @@ SCENES.hanzi = (() => {
         for (let k = 0; k <= K; k++) {
           let m = 1;
           for (let j = Math.max(0, k - W); j <= Math.min(K, k + W); j++) m = Math.min(m, vr[j] + smooth(Math.abs(j - k) / W) * (1 - vr[j]));
-          // (near the run's ends its own start and stop do the slowing: no second dip on top of them)
+          // near the run's ends its own start and stop do the slowing
           v[k] = lerp(Math.max(m, 0.5), m, smooth(Math.min(1, (Math.min(k, K - k) * L) / K / (12 * S))));
           if (k) tw[k] = tw[k - 1] + (2 * L) / K / (v[k - 1] + v[k]);
         }
-        // it cruises at 420 px/s (7 px a frame), taking up to 0.15 s to get up to speed and to stop
+        // cruise 420 px/s, up to 0.15 s to get up to speed and to stop
         const ramp = Math.min(0.15, 0.08 + L / (600 * S));
         const d = tw[K] / (420 * S) + 2 * ramp * (1 - 2 / Math.PI);
         const run = { ink: true, segs, offs, P, cum, L, K, tw, t0: T, d, a: Math.min(0.45, ramp / d) };
@@ -380,8 +362,7 @@ SCENES.hanzi = (() => {
           r.len = (j + 1 < segs.length ? offs[j + 1] : L) - offs[j];
           r.ta = timeAt(run, r.off);
           r.tb = timeAt(run, r.off + r.len);
-          // its stroke in the grid is drawn in step with the pen, but never faster than 300 px/s on average:
-          // the eye's three tiny segments would otherwise flash the long 口 strokes in within a few frames
+          // its stroke in the grid follows the pen, but never faster than 300 px/s on average
           r.gd = Math.max(r.tb - r.ta, r.lenA / (300 * S));
           r.gs = r.gd > r.tb - r.ta + 1e-6;
         });
@@ -435,15 +416,13 @@ SCENES.hanzi = (() => {
       const tau = t - PEN0;
       let tp = tau >= 0 ? tau % TP : 0;
       if (exiting) {
-        // its clock runs down to a stop over ex 0–0.16 (pass time ∫ 1 − smooth), so the pen slows to rest,
-        // wherever it was, before it flies to the ring (from 0.12: it turns round at a crawl, never at speed)
+        // its clock runs down to a stop over ex 0–0.16, so the pen comes to rest before it flies to the ring
         const z = Math.min(1, ex / 0.16), te = t - ex * EXIT - PEN0;
         tp = Math.max(0, te + EXIT * 0.16 * (z - iu(z))) % TP;
       }
       const penOn = smooth(seg(t, PEN0 - 0.3, PEN0));
-      // how far the pen has re-inked segment i in this pass (p), how fresh that is (f), where the wet head
-      // starts (pw: the pen's position 0.12 s ago); and for its stroke in the grid: how long since the pen
-      // reached the segment (ga), how far the stroke is drawn (g) and how fresh it is (gf)
+      // how far the pen has re-inked segment i this pass (p), how fresh (f), where the wet head starts (pw: the pen
+      // 0.12 s ago); for its stroke in the grid: time since the pen reached it (ga), how far drawn (g), freshness (gf)
       const inkOf = (i) => {
         const r = recs[i], run = r.run;
         let best = null;
@@ -461,8 +440,7 @@ SCENES.hanzi = (() => {
         return best;
       };
 
-      // ---- the stroke being re-inked shows in the grid (where it was written), with its number; both come in
-      //      over at least 0.15 s, however short the pen's segment
+      // ---- the stroke being re-inked shows in the grid, with its number (both come in over ≥ 0.15 s)
       if (tau >= 0 && out > 0) {
         for (const r of recs) {
           const k = inkOf(r.i);
@@ -503,7 +481,7 @@ SCENES.hanzi = (() => {
           const path = new Path2D();
           strokePart(r.src, r.cumA, 0, p * r.lenA, path);
           strokePath(path, 0.8 * smooth(seg(p, 0, 0.12)), 1.3);
-          // wet ink: the last 0.1 s of travel is brighter, and dries out behind the pen
+          // wet ink: the last 0.1 s of travel is brighter
           const pw = inOutSine(seg(t - 0.1, r.w0, r.w0 + r.wd));
           if (p - pw > 0.002) {
             const wet = new Path2D();
@@ -515,9 +493,8 @@ SCENES.hanzi = (() => {
         }
         const k = seg(t, r.sw, r.sw + SWIM);
         if (k < 1) {
-          // swimming: glide on a bowed path, turn and scale, bending on the way (the bend follows the
-          // linear swim progress, so it is spread over the trip instead of packed into its middle)
-          // (横 5 slides out level, under the eye, and curls up round it only near the end)
+          // swimming: glide on a bowed path, turn and scale, bending on the way (横 5 slides out level and curls up
+          // round the eye only near the end)
           const ke = inOutSine(k);
           if (r.g >= 0) morphGroup(r, ke, smooth(seg(k, 0.1, 1)), P);
           else if (i === 4) blend(r.ms, ke, smooth(seg(k, 0.3, 1)), smooth(seg(k, 0.35, 1)), ke, 0.3, 0, r.ms.bx, r.ms.by, P);
@@ -526,8 +503,7 @@ SCENES.hanzi = (() => {
           const path = new Path2D();
           path.moveTo(P[0][0], P[0][1]);
           for (let j = 1; j < r.n; j++) path.lineTo(P[j][0], P[j][1]);
-          // in its last tenth (within 2.5% of its place) it is drawn with the docked outline, at the same alpha
-          // and width by then, so its round ends never double up on its neighbours'
+          // in its last tenth it is drawn with the docked outline, so its round ends never double up on its neighbours'
           if (kd < 1) strokePath(path, lerp(0.8, dockA, kd), lerp(1.3, 1.25, kd));
           else { docked.addPath(path); anyDocked = true; }
           const gl = smooth(seg(k, 0.7, 1));
@@ -537,11 +513,10 @@ SCENES.hanzi = (() => {
           continue;
         }
         if (exiting) {
-          // the segment flies onto its sector of the ring (which turns a little), all of it shrinking
+          // the segment flies onto its sector of the ring (which turns a little), all of it shrinking; a piece that
+          // has to shrink does so early, one that has to grow (the eye's) lengthens near the ring
           const pe = seg(ex, r.ea, r.ea + 0.33), m = inOutSine(pe);
           const bx = CX + (r.me.bx - CX) * cs - (r.me.by - CY) * sn, by = CY + (r.me.bx - CX) * sn + (r.me.by - CY) * cs;
-          // a piece that has to shrink does so early (it never sweeps across the others at full length);
-          // one that has to grow (the eye's) opens into a short dash as it leaves, and lengthens near the ring
           const ks = r.grow ? inOutSine(seg(pe, 0.2, 1)) : inOutSine(seg(pe, 0, 0.85));
           blend(r.me, m, m, r.grow ? smooth(seg(pe, 0, 0.9)) : smooth(seg(pe, 0.1, 1)), ks, 0.15, swirl, bx, by, P);
           for (let j = 0; j < r.n; j++) map(P[j][0], P[j][1], P[j]);
@@ -592,10 +567,9 @@ SCENES.hanzi = (() => {
         if (hand > 0) arc(HX, HY, SPIN_R, 0, TAU, RING_ALPHA * hand, 2);
       }
 
-      // ---- the pen: re-traces the whale while waiting. On exit it lifts and flies, in the whale's own
-      //      (shrinking) frame, straight to the spot on the ring where it comes down, a little ahead of the
-      //      spinner's head; it lands at rest and writes the seventeenth stroke, the spinner's progress arc,
-      //      speeding up until it runs with the spinner (head first, then the tail) exactly as its own arc.
+      // ---- the pen: re-traces the whale while waiting. On exit it lifts and flies, in the whale's shrinking frame,
+      //      to where it comes down on the ring, a little ahead of the spinner's head; it lands at rest and writes
+      //      the seventeenth stroke, speeding up until it runs with the spinner exactly as its own arc
       const q = penAt(tp);
       {
         let x = q.x, y = q.y, down = q.down, a = penOn;
@@ -604,8 +578,7 @@ SCENES.hanzi = (() => {
           const om = handoffSpec ? TAU / (handoffSpec.dur / 1000) : TAU / 0.8;
           const Tw = (ARC - LAND) * EXIT, xh = 0.35;                    // the head is at full speed by 35%
           const xt = clamp01(xh - 1 + (2 * sw) / (om * Tw));          // the tail starts when it must
-          // where the head comes down: constant through the exit (the spinner turns at a steady rate)
-          const land = a0 + sw + om * ((LAND - ex) * EXIT + (Tw * xh) / 2);
+          const land = a0 + sw + om * ((LAND - ex) * EXIT + (Tw * xh) / 2);   // where the head comes down (constant)
           if (ex < LAND) {
             const w = smooth(seg(ex, 0.12, LAND)), o = [0, 0];
             map(lerp(q.x, CX + Math.cos(land) * R0, w), lerp(q.y, CY + Math.sin(land) * R0, w), o);
