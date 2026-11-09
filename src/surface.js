@@ -1,11 +1,10 @@
-// Surface loops for the "Deep diving" whale tail: the whale always stays in the water.
-// The flat cut at the bottom of the built-in icon is the waterline (SF_WATER). The tail model's stock is
-// continued below it and everything of the whale under the line is clipped, so the tail can only rise
-// out of / slide into the water and its cut never shows in the air. The water itself is not drawn; it
-// only shows where something touches it (ripples, collars, streaks, drips, bubbles, blows).
-// Uses RIG_MODEL (rig-model.js): the built-in outline lifted into 3D, 46 cubic control points of a
-// mirror-symmetric tail (x span, y down, z depth) whose rest pose projects exactly onto the original 2D
-// icon. Loops live in surface-anims.js (SF_DEFS); the spout's blow is noto-blow.js.
+// Surface loops for the "Deep diving" whale tail. The flat cut at the bottom of the built-in icon is the
+// waterline (SF_WATER): the tail model's stock is continued below it and everything under the line is
+// clipped, so the tail only ever rises out of / slides into the water. The water itself is not drawn; it
+// shows only where something touches it (ripples, collars, drips, bubbles, blows).
+// RIG_MODEL (rig-model.js) is the built-in outline lifted into 3D: 46 cubic control points of a
+// mirror-symmetric tail whose rest pose projects exactly onto the icon. Loops: surface-anims.js (SF_DEFS);
+// the spout's blow: noto-blow.js.
 
 const SF_WATER = 13.742;
 const SF_TAU = Math.PI * 2;
@@ -282,7 +281,7 @@ function sfBake(def) {
     }
     last = pts;
   }
-  return { period: def.period, frames, def, events, cache: new Map() };
+  return { frames, def, events, cache: new Map() };
 }
 function sfPoseAt(baked, t) {
   const f = baked.frames;
@@ -302,15 +301,11 @@ function sfTailAt(baked, t) {
 }
 
 const SF_BAKED = {};
-function sfAnims() {
-  for (const [k, d] of Object.entries(SF_DEFS)) if (!SF_BAKED[k]) SF_BAKED[k] = sfBake(d);
-  return SF_BAKED;
-}
 
 /** Everything needed to draw one frame of loop `name` at time t.
  *  opt.noTail: water only; opt.fxMin / opt.fxMax: keep only effects that start inside that window. */
 function sfFrame(name, t, opt = {}) {
-  const baked = sfAnims()[name];
+  const baked = SF_BAKED[name] || (SF_BAKED[name] = sfBake(SF_DEFS[name]));
   const def = baked.def;
   const fr = Object.assign(sfEmptyFrame(), { fxMin: opt.fxMin, fxMax: opt.fxMax });
   const pose = sfPoseAt(baked, t);

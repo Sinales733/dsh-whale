@@ -1,13 +1,11 @@
 // dsh-motion — livelier running indicators for the DeepSeek Harness chat.
-//  1. "Deep diving" status: the built-in whale-tail animation stays, joined by the three newer official
-//     loops (spin, sway, stroke) and two surface loops of our own drawn on a 3D rig of the same tail
-//     (fluke: a fluke-up dive; spout: the head surfaces and blows). The icon's flat cut is the waterline,
-//     so the whale only ever shows above the water. A shuffled rotation picks one per loop (or one per
-//     turn), and each change from one loop to the next is seamless (see the whale tail section).
-//  2. Tool rows: while a call runs, its 16px leading icon is replaced by a per-variant line
-//     animation; on completion a ring closes around the icon (ok) or breaks with a shake (error).
-// build.mjs concatenates (one scope): orig-frames.js, official-frames.js (OFFICIAL), rig-model.js, surface.js,
-// noto-blow-data.js, noto-blow.js, surface-anims.js (SF_DEFS), tool-art.js (TOOL_ART), this file.
+//  1. "Deep diving" status: the built-in whale-tail loop, the three newer official loops (spin, sway, stroke)
+//     and two surface loops of our own on a 3D rig of the same tail (fluke, spout), in a shuffled rotation
+//     with seamless changes between them (see the whale tail section).
+//  2. Tool rows: while a call runs, the 16px leading icon plays a per-variant line animation; on completion a
+//     ring closes around it (ok) or breaks with a shake (error).
+// build.mjs concatenates src/* into one scope: frame data (ORIG_*, OFFICIAL), rig-model.js (RIG_MODEL),
+// surface.js + noto-blow*.js + surface-anims.js (sf*, SF_DEFS), tool-art.js (TOOL_ART), this file.
 
 const NS = 'http://www.w3.org/2000/svg';
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -124,7 +122,6 @@ function frameImages() {
       c.ready = true;
     };
     if (im.complete && im.naturalWidth) clean(); else im.addEventListener('load', clean, { once: true });
-    c.source = im;
     return c;
   });
   return IMGS;
