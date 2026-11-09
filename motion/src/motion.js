@@ -5,7 +5,7 @@
 //  2. Tool rows: while a call runs, the 16px leading icon plays a per-variant line animation; on completion a
 //     ring closes around it (ok) or breaks with a shake (error).
 // build.mjs concatenates src/* into one scope: frame data (ORIG_*, OFFICIAL), rig-model.js (RIG_MODEL),
-// surface.js + noto-blow*.js + surface-anims.js (sf*, SF_DEFS), tool-art.js (TOOL_ART), this file.
+// surface.js + noto-blow*.js + surface-anims.js (sf*, SF_DEFS), tool-art.js (TOOL_ART, taPose), this file.
 
 const NS = 'http://www.w3.org/2000/svg';
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -397,23 +397,13 @@ const CSS = `
 .dshm-cv{position:absolute;left:-35.7143%;top:-35.7143%;width:171.4286%;height:171.4286%}
 .dshm-lead{position:relative}
 .dshm-lead.dshm-active>:not(.dshm-tool){opacity:0}
-.dshm-tool{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;overflow:visible;pointer-events:none;color:inherit}
+.dshm-tool{position:absolute;overflow:visible;pointer-events:none;color:inherit}
 [data-disclosure-row]:hover .dshm-lead.dshm-active>:not(.dshm-tool),
 [data-disclosure-row][aria-expanded="true"] .dshm-lead.dshm-active>:not(.dshm-tool){opacity:1}
 [data-disclosure-row]:hover .dshm-tool,[data-disclosure-row][aria-expanded="true"] .dshm-tool{opacity:0}
 .dshm-ring{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;overflow:visible;pointer-events:none}
 .dshm-ring circle{fill:none;stroke:currentColor;stroke-width:1;stroke-linecap:round}
-.dshm-done .dshm-ring circle{stroke-dasharray:63;stroke-dashoffset:63;transform:rotate(-90deg);transform-origin:11px 11px;animation:dshm-close .42s cubic-bezier(.3,0,.2,1) forwards,dshm-fade .32s .48s ease forwards}
-.dshm-done>:not(.dshm-ring){animation:dshm-pop .5s cubic-bezier(.3,1.6,.5,1)}
-.dshm-fail{animation:dshm-shake .42s cubic-bezier(.36,.07,.19,.97)}
 .dshm-fail .dshm-ring{color:var(--dsw-alias-state-error-primary,#e5484d)}
-.dshm-fail .dshm-ring circle{stroke-dasharray:4 3;animation:dshm-burst .6s ease-out forwards}
-@keyframes dshm-close{to{stroke-dashoffset:0}}
-@keyframes dshm-fade{to{opacity:0}}
-@keyframes dshm-pop{0%{transform:scale(.55)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
-@keyframes dshm-shake{20%,60%{transform:translateX(-2px)}40%,80%{transform:translateX(2px)}}
-@keyframes dshm-burst{0%{transform:scale(.7) rotate(0);transform-origin:11px 11px;opacity:1}100%{transform:scale(1.25) rotate(40deg);transform-origin:11px 11px;opacity:0}}
-@media (prefers-reduced-motion:reduce){.dshm-done>*,.dshm-fail,.dshm-ring circle{animation:none!important}}
 `;
 
 const ACTIVE_STATES = new Set(['running', 'preparing']);
@@ -428,51 +418,84 @@ function createMotion(options = {}) {
   const only = POOL.includes(options.whale) ? options.whale : null;
   const perTurn = options.whaleMode === 'turn';
   const tails = new Map();     // running-status icon element → whale controller
-  const tools = new Map();     // tool row root → { lead, svg, variant, t0 }
+  const tools = new Map();     // tool row root → { lead, svg, parts, variant, t0, end }
+  const rings = new Set();     // finish rings: { lead, svg, circle, t0, ok }
   const lastState = new WeakMap();
 
   function leadOf(row) {
     return row.querySelector('[data-disclosure-row] [class*="leading"]');
   }
 
+  // the host's own icon, cloned and laid exactly over it; its parts move (tool-art.js)
   function startTool(row) {
     const lead = leadOf(row);
     if (!lead) return;
-    const variant = TOOL_ART[row.getAttribute('data-variant')] ? row.getAttribute('data-variant') : 'others';
-    const svg = document.createElementNS(NS, 'svg');
+    const icon = [...lead.children].find((c) => c.tagName.toLowerCase() === 'svg' && !c.classList.contains('dshm-tool'));
+    if (!icon) return;
+    const svg = icon.cloneNode(true);
     svg.setAttribute('class', 'dshm-tool');
-    svg.setAttribute('viewBox', '0 0 16 16');
-    svg.setAttribute('fill', 'none');
     svg.setAttribute('aria-hidden', 'true');
+    const rl = lead.getBoundingClientRect(), ri = icon.getBoundingClientRect();
+    svg.style.cssText = `left:${ri.left - rl.left}px;top:${ri.top - rl.top}px;width:${ri.width}px;height:${ri.height}px`;
     lead.classList.add('dshm-lead', 'dshm-active');
     lead.appendChild(svg);
-    tools.set(row, { lead, svg, variant, t0: performance.now() });
-    svg.innerHTML = TOOL_ART[variant](reduced ? 0.4 : 0);
+    const variant = row.getAttribute('data-variant') || 'others';
+    tools.set(row, { lead, svg, parts: taParts(svg), variant, t0: performance.now(), end: 0 });
+  }
+
+  // amplitude: eases in from the still icon at the start, back to it at the end
+  function poseTool(entry, now) {
+    const t = (now - entry.t0) / 1000;
+    let a = sfSmooth(Math.min(1, t / 0.35));
+    if (entry.end) a *= 1 - sfSmooth(Math.min(1, (now - entry.end) / 480));
+    taPose(entry.variant, entry.parts, t, a);
+    return !entry.end || now - entry.end < 480;
   }
 
   function stopTool(row, outcome) {
     const entry = tools.get(row);
-    tools.delete(row);
     const lead = entry ? entry.lead : leadOf(row);
     if (entry) {
-      entry.svg.remove();
-      lead.classList.remove('dshm-active');
+      entry.end = performance.now();
+      if (reduced) { tools.delete(row); entry.svg.remove(); lead.classList.remove('dshm-active'); }
     }
-    if (!lead || !lead.isConnected || reduced) return;
-    if (outcome !== 'ok' && outcome !== 'error') return;
+    if (!lead || !lead.isConnected || reduced || (outcome !== 'ok' && outcome !== 'error')) return;
+    for (const r of rings) if (r.lead === lead) { r.svg.remove(); rings.delete(r); }
     lead.classList.add('dshm-lead');
-    const ring = document.createElementNS(NS, 'svg');
-    ring.setAttribute('class', 'dshm-ring');
-    ring.setAttribute('viewBox', '0 0 22 22');
-    ring.setAttribute('aria-hidden', 'true');
-    ring.innerHTML = '<circle cx="11" cy="11" r="10"/>';
-    lead.appendChild(ring);
-    const cls = outcome === 'ok' ? 'dshm-done' : 'dshm-fail';
-    lead.classList.add(cls);
-    setTimeout(() => {
-      ring.remove();
-      lead.classList.remove(cls);
-    }, 900);
+    lead.classList.toggle('dshm-fail', outcome !== 'ok');
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'dshm-ring');
+    svg.setAttribute('viewBox', '0 0 22 22');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = '<circle cx="11" cy="11" r="10" pathLength="1"/>';
+    lead.appendChild(svg);
+    rings.add({ lead, svg, circle: svg.firstChild, t0: performance.now(), ok: outcome === 'ok' });
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+
+  // ok: a hairline ring draws itself round the settling icon, then fades. error: the row shakes once and a
+  // dashed ring bursts outward. Driven here (not CSS) so it shares the icon's clock.
+  function poseRing(r, now) {
+    const t = (now - r.t0) / 1000;
+    if (r.ok) {
+      const k = sfSeg(t, 0.08, 0.58), draw = 1 - Math.pow(1 - k, 3);
+      r.circle.setAttribute('stroke-dasharray', `${draw} 1`);
+      r.circle.setAttribute('transform', 'rotate(-90 11 11)');
+      r.circle.setAttribute('stroke-opacity', String(sfSmooth(sfSeg(t, 0.08, 0.2))));
+      r.svg.style.opacity = String(1 - sfSmooth(sfSeg(t, 0.6, 0.92)));
+    } else {
+      const k = sfSeg(t, 0, 0.6), e = 1 - Math.pow(1 - k, 2);
+      r.circle.setAttribute('stroke-dasharray', '0.064 0.048');
+      r.circle.setAttribute('transform', `rotate(${40 * e} 11 11) translate(11 11) scale(${0.7 + 0.55 * e}) translate(-11 -11)`);
+      r.svg.style.opacity = String(1 - e);
+      const sk = sfSeg(t, 0, 0.42);
+      r.lead.style.transform = sk < 1 ? `translateX(${(2 * Math.sin(sk * Math.PI * 4) * (1 - sk)).toFixed(2)}px)` : '';
+    }
+    if (t < 1) return true;
+    r.svg.remove();
+    r.lead.style.transform = '';
+    r.lead.classList.remove('dshm-fail');
+    return false;
   }
 
   function scan() {
@@ -493,14 +516,14 @@ function createMotion(options = {}) {
       const prev = lastState.get(row);
       if (prev === state) continue;
       lastState.set(row, state);
-      if (ACTIVE_STATES.has(state)) { if (!tools.has(row)) startTool(row); }
+      if (ACTIVE_STATES.has(state)) { const e = tools.get(row); if (!e || e.end) { if (e) { e.svg.remove(); tools.delete(row); } startTool(row); } }
       else if (prev !== undefined && ACTIVE_STATES.has(prev)) stopTool(row, state);
     }
     for (const [row, entry] of tools) {
       if (!row.isConnected) tools.delete(row);
       else if (!entry.svg.isConnected) { tools.delete(row); lastState.delete(row); }
     }
-    if (!reduced && (tails.size || tools.size) && !raf) raf = requestAnimationFrame(frame);
+    if (!reduced && (tails.size || tools.size || rings.size) && !raf) raf = requestAnimationFrame(frame);
   }
 
   function queueScan() {
@@ -513,8 +536,14 @@ function createMotion(options = {}) {
     raf = 0;
     if (disposed) return;
     for (const whale of tails.values()) whale.render(now / 1000);
-    for (const entry of tools.values()) entry.svg.innerHTML = TOOL_ART[entry.variant]((now - entry.t0) / 1000);
-    if (tails.size || tools.size) raf = requestAnimationFrame(frame);
+    for (const [row, entry] of tools) {
+      if (poseTool(entry, now)) continue;
+      tools.delete(row);
+      entry.svg.remove();
+      entry.lead.classList.remove('dshm-active');
+    }
+    for (const r of rings) if (!poseRing(r, now)) rings.delete(r);
+    if (tails.size || tools.size || rings.size) raf = requestAnimationFrame(frame);
   }
 
   return {
@@ -534,9 +563,11 @@ function createMotion(options = {}) {
       for (const whale of tails.values()) whale.el.remove();
       for (const entry of tools.values()) { entry.svg.remove(); entry.lead.classList.remove('dshm-active', 'dshm-lead'); }
       document.querySelectorAll('.dshm-ring').forEach((e) => e.remove());
-      document.querySelectorAll('.dshm-lead').forEach((e) => e.classList.remove('dshm-lead', 'dshm-done', 'dshm-fail', 'dshm-active'));
+      for (const r of rings) r.lead.style.transform = '';
+      document.querySelectorAll('.dshm-lead').forEach((e) => e.classList.remove('dshm-lead', 'dshm-fail', 'dshm-active'));
       tails.clear();
       tools.clear();
+      rings.clear();
       style?.remove();
     },
   };

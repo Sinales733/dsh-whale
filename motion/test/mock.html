@@ -23,8 +23,9 @@
   </span>
 </div>
 <div id="rows"></div>
+<script src="dsh-icons.js"></script>
 <script>
-  const ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>';
+  const ICONS = window.DSH_ICONS;
   const rows = [
     ['search', 'grep', 'Search', 'pattern "data-state"'],
     ['read', 'read', 'Read', 'lib/client.js'],
@@ -38,7 +39,7 @@
   for (const [variant, tool, title, sum] of rows) {
     const el = document.createElement('div');
     el.setAttribute('data-variant', variant); el.setAttribute('data-tool', tool); el.setAttribute('data-state', 'running');
-    el.innerHTML = `<div data-disclosure-row class="row"><span class="Y_leading">${ICON}</span><span class="title">${title}</span><span class="sum">${sum}</span></div>`;
+    el.innerHTML = `<div data-disclosure-row class="row"><span class="Y_leading">${ICONS[variant] || ICONS.others}</span><span class="title">${title}</span><span class="sum">${sum}</span></div>`;
     host.appendChild(el);
   }
   // DSH lazy module loader stand-in
@@ -54,6 +55,17 @@
     const els = host.children;
     for (let i = 0; i < els.length; i++) els[i].setAttribute('data-state', i % 3 === 2 ? 'error' : 'ok');
   }, finishAt);
+  // ?loop: run 2.4 s, finish (row 3 and 6 fail), rest 1.2 s, again
+  if (q.get('loop')) {
+    const els = host.children;
+    const cycle = () => {
+      for (const e of els) e.setAttribute('data-state', 'running');
+      setTimeout(() => { for (let i = 0; i < els.length; i++) els[i].setAttribute('data-state', i % 3 === 2 ? 'error' : 'ok'); }, 2400);
+      setTimeout(cycle, 3600);
+    };
+    for (const e of els) e.setAttribute('data-state', 'ok');
+    setTimeout(cycle, 600);
+  }
 </script>
 </body>
 </html>

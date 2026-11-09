@@ -578,84 +578,82 @@ window.__ModuleLoader__.load({
 		  },
 		};
 
-		// Tool-row leading-icon animations (one per tool variant): each renderer returns SVG markup for a 16×16
-		// box at time t (seconds since the call started). Uses sfSeg (surface.js).
-		const f2 = (v) => Math.round(v * 100) / 100;
-		const g = (inner, extra = '') => `<g stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" ${extra}>${inner}</g>`;
-		
+		// Tool-row leading-icon animations. They move the parts of the host's own icon (a clone of its <svg>), so
+		// size, stroke and detail are exactly DSH's. Every motion is scaled by an amplitude a (0..1): it eases in
+		// from the still icon when the call starts and eases back to the still icon when it ends.
+		// Each mover gets the clone's elements (in document order), the time t (s) and a; it sets attributes.
+		const TA_TAU = Math.PI * 2;
+		const taF = (v) => Math.round(v * 1000) / 1000;
+		const taSet = (el, tf, op = 1) => { el.setAttribute('transform', tf); el.setAttribute('opacity', taF(op)); };
+		const taAbout = (x, y, s = 1, r = 0, dx = 0, dy = 0) =>
+		  `translate(${taF(x + dx)} ${taF(y + dy)}) rotate(${taF(r)}) scale(${taF(s)}) translate(${taF(-x)} ${taF(-y)})`;
+		const taSx = (x, y, sx) => `translate(${taF(x)} ${taF(y)}) scale(${taF(sx)} 1) translate(${taF(-x)} ${taF(-y)})`;
+
 		const TOOL_ART = {
-		  // magnifier circling over the page, with a glint sweeping inside the lens
-		  search(t) {
-		    const cx = 6.6 + 1.3 * Math.cos(t * 2.6), cy = 6.6 + 1.3 * Math.sin(t * 2.6);
-		    const r = 3.5, a = t * 4.2;
-		    const hx = cx + r * 0.72, hy = cy + r * 0.72;
-		    const gx1 = cx + 2.1 * Math.cos(a), gy1 = cy + 2.1 * Math.sin(a);
-		    const gx2 = cx + 2.1 * Math.cos(a + 1.1), gy2 = cy + 2.1 * Math.sin(a + 1.1);
-		    return g(`<circle cx="${f2(cx)}" cy="${f2(cy)}" r="${r}"/>` +
-		      `<path d="M${f2(hx)} ${f2(hy)}L${f2(hx + 3)} ${f2(hy + 3)}"/>`) +
-		      g(`<path d="M${f2(gx1)} ${f2(gy1)}A2.1 2.1 0 0 1 ${f2(gx2)} ${f2(gy2)}"/>`, 'opacity="0.55" stroke-width="0.8"');
+		  // [lens, handle]: the magnifier sweeps a small circle as if scanning; the lens breathes, the handle trails
+		  search(p, t, a) {
+		    if (p.length !== 2) return false;
+		    const w = t * 3.1, dx = 1.15 * Math.cos(w) * a, dy = 1.15 * Math.sin(w) * a;
+		    taSet(p[0], taAbout(6.59, 6.49, 1 + 0.05 * Math.sin(w * 2) * a, 0, dx, dy));
+		    taSet(p[1], taAbout(10.3, 10.39, 1, 7 * Math.sin(w - 0.7) * a, dx, dy));
 		  },
-		  // a page whose lines light up as a scan bar passes
-		  read(t) {
-		    const k = (t * 0.85) % 1;
-		    const scan = 3.2 + k * 10.2;
-		    let lines = '';
-		    [5, 7.4, 9.8, 12.2].forEach((y, i) => {
-		      const lit = Math.exp(-(((y - scan) / 1.5) ** 2));
-		      lines += `<path d="M5.3 ${y}H${i === 3 ? 9.2 : 10.8}" opacity="${f2(0.35 + 0.65 * lit)}"/>`;
-		    });
-		    return g('<path d="M3.4 2.2h6.4l2.8 2.8v8.8a.8.8 0 0 1-.8.8H3.4a.8.8 0 0 1-.8-.8V3a.8.8 0 0 1 .8-.8z"/>') +
-		      g(lines, 'stroke-width="0.9"') +
-		      g(`<path d="M2.2 ${f2(scan)}H13.8"/>`, `opacity="${f2(0.7 * Math.sin(Math.PI * k))}" stroke-width="0.7"`);
+		  // [line, short line, page]: the two text lines are read in turn (a soft highlight runs across them,
+		  // the short one grows as if being written), the page lifts a hair
+		  read(p, t, a) {
+		    if (p.length !== 3) return false;
+		    const k = (t * 0.9) % 1;
+		    const lit = (c) => Math.exp(-(((k - c) / 0.22) ** 2)) + Math.exp(-(((k - c + 1) / 0.22) ** 2));
+		    taSet(p[0], '', 1 - a * 0.55 * (1 - lit(0.3)));
+		    taSet(p[1], taSx(4.94, 9.03, 1 - a * 0.45 * (0.5 + 0.5 * Math.cos(TA_TAU * k))), 1 - a * 0.55 * (1 - lit(0.7)));
+		    taSet(p[2], `translate(0 ${taF(-0.35 * a * Math.sin(TA_TAU * k))})`);
 		  },
-		  // a prompt that types a command, character by character, with a blinking caret
-		  bash(t) {
-		    const k = (t * 0.7) % 1;
-		    const typed = Math.min(4, Math.floor(k * 6));
-		    let chars = '';
-		    for (let i = 0; i < typed; i++) chars += `<path d="M${f2(7.4 + i * 1.7)} 11.4h1"/>`;
-		    const caretX = 7.4 + typed * 1.7;
-		    const caret = Math.floor(t * 3) % 2 === 0 || typed < 4 ? `<path d="M${f2(caretX)} 6.8v4.6" stroke-width="1.3"/>` : '';
-		    return g('<path d="M2.6 4.8l3.4 3.2-3.4 3.2"/>' + chars + caret);
+		  // [chevron, cursor]: the prompt nudges forward on each keystroke, the cursor line breathes and stretches
+		  bash(p, t, a) {
+		    if (p.length !== 2) return false;
+		    const w = t * 4.2, beat = Math.pow(0.5 + 0.5 * Math.sin(w), 3);
+		    taSet(p[0], `translate(${taF(1.3 * beat * a)} 0)`);
+		    taSet(p[1], taSx(9, 12, 1 - a * 0.4 * (0.5 + 0.5 * Math.sin(w * 0.5 - 1))), 1 - a * 0.6 * (0.5 + 0.5 * Math.cos(w * 0.5)));
 		  },
-		  // a pencil gliding along, laying down a wavy stroke behind it
-		  write(t) {
-		    const k = (t * 0.6) % 1;
-		    const x = 2.5 + k * 9.5;
-		    const yAt = (xx) => 12.3 + 0.9 * Math.sin(xx * 1.4);
-		    let trail = `M2.5 ${f2(yAt(2.5))}`;
-		    for (let xx = 3; xx <= x; xx += 0.5) trail += `L${f2(xx)} ${f2(yAt(xx))}`;
-		    const tx = x, ty = yAt(x);
-		    const ang = -0.85 + 0.15 * Math.sin(t * 6);
-		    const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
-		    const P = (along, side) => `${f2(tx + dx * along + nx * side)} ${f2(ty + dy * along + ny * side)}`;
-		    const pencil = `M${P(0, 0)}L${P(2, -1)}L${P(8, -1)}L${P(8, 1)}L${P(2, 1)}Z M${P(2, -1)}L${P(2, 1)}`;
-		    return g(`<path d="${trail}"/>`, `opacity="${f2(1 - sfSeg(k, 0.85, 1))}"`) + g(`<path d="${pencil}" stroke-width="0.9"/>`);
+		  // [frame, pen]: the pen line writes small loops around its tip; the frame stays put
+		  write(p, t, a) {
+		    if (p.length !== 2) return false;
+		    const w = t * 5.2;
+		    const dx = (1.0 * Math.sin(w) + 0.3 * Math.sin(w * 2.1)) * a, dy = 0.75 * Math.sin(w * 2) * a;
+		    taSet(p[1], taAbout(7.78, 8.24, 1, 6 * Math.sin(w + 0.6) * a, dx, dy));
 		  },
-		  // angle brackets breathing apart while the slash tips back and forth
-		  code(t) {
-		    const s = 0.9 * Math.sin(t * 3.2);
-		    const a = 0.25 * Math.sin(t * 3.2 + 1.2);
-		    const cx = 8, cy = 8, L = 4;
-		    const sx = Math.sin(0.35 + a) * L, sy = Math.cos(0.35 + a) * L;
-		    return g(`<path d="M${f2(5 - s)} 4.5L${f2(1.8 - s)} 8l${3.2} 3.5"/>` +
-		      `<path d="M${f2(11 + s)} 4.5L${f2(14.2 + s)} 8l-3.2 3.5"/>` +
-		      `<path d="M${f2(cx + sx)} ${f2(cy - sy)}L${f2(cx - sx)} ${f2(cy + sy)}"/>`);
+		  // [two slanted strokes, two bars]: the four strokes of # slide in a travelling wave
+		  code(p, t, a) {
+		    if (p.length !== 4) return false;
+		    const w = t * 3.6;
+		    taSet(p[0], `translate(0 ${taF(1.2 * Math.sin(w) * a)})`);
+		    taSet(p[1], `translate(0 ${taF(1.2 * Math.sin(w + 1.6) * a)})`);
+		    taSet(p[2], `translate(${taF(1.2 * Math.sin(w + 0.8) * a)} 0)`);
+		    taSet(p[3], `translate(${taF(1.2 * Math.sin(w + 2.4) * a)} 0)`);
 		  },
-		  // a four-point sparkle turning and pulsing, with satellites twinkling
-		  others(t) {
-		    const sc = 0.82 + 0.18 * Math.sin(t * 4);
-		    const rot = t * 70;
-		    const star = 'M8 1.8C8.6 6 10 7.4 14.2 8 10 8.6 8.6 10 8 14.2 7.4 10 6 8.6 1.8 8 6 7.4 7.4 6 8 1.8Z';
-		    const tw = (x, y, ph) => {
-		      const o = Math.max(0, Math.sin(t * 5 + ph));
-		      return `<path d="M${x - 1} ${y}h2M${x} ${y - 1}v2" opacity="${f2(o)}" stroke-width="0.8"/>`;
-		    };
-		    return g(`<path d="${star}" transform="rotate(${f2(rot)} 8 8) translate(8 8) scale(${f2(sc)}) translate(-8 -8)"/>`) +
-		      g(tw(13.2, 2.8, 0) + tw(2.8, 13.2, 2.1));
+		  // [big sparkle, top, bottom]: the big sparkle swells and turns, the small ones twinkle in turn
+		  others(p, t, a) {
+		    if (p.length !== 3) return false;
+		    const w = t * 3.4;
+		    taSet(p[0], taAbout(5.875, 8, 1 + 0.12 * Math.sin(w) * a, 14 * Math.sin(w * 0.5) * a));
+		    taSet(p[1], taAbout(12.375, 4.31, 1 - 0.45 * (0.5 + 0.5 * Math.sin(w * 1.3)) * a));
+		    taSet(p[2], taAbout(12.375, 12.44, 1 - 0.45 * (0.5 + 0.5 * Math.sin(w * 1.3 + Math.PI)) * a));
 		  },
 		};
 		TOOL_ART.edit = TOOL_ART.write;
+
+		// any other icon: its parts breathe in turn about their own centres
+		function taGeneric(p, t, a) {
+		  p.forEach((el, i) => {
+		    let b; try { b = el.getBBox(); } catch { return; }
+		    taSet(el, taAbout(b.x + b.width / 2, b.y + b.height / 2, 1 + 0.08 * Math.sin(t * 3.4 - i * 0.9) * a));
+		  });
+		}
+
+		const taParts = (svg) => [...svg.querySelectorAll('path,circle,ellipse,line,polyline,polygon,rect')];
+		function taPose(variant, parts, t, a) {
+		  const f = TOOL_ART[variant];
+		  if (!f || f(parts, t, a) === false) taGeneric(parts, t, a);
+		}
 
 		// dsh-motion — livelier running indicators for the DeepSeek Harness chat.
 		//  1. "Deep diving" status: the built-in whale-tail loop, the three newer official loops (spin, sway, stroke)
@@ -664,11 +662,11 @@ window.__ModuleLoader__.load({
 		//  2. Tool rows: while a call runs, the 16px leading icon plays a per-variant line animation; on completion a
 		//     ring closes around it (ok) or breaks with a shake (error).
 		// build.mjs concatenates src/* into one scope: frame data (ORIG_*, OFFICIAL), rig-model.js (RIG_MODEL),
-		// surface.js + noto-blow*.js + surface-anims.js (sf*, SF_DEFS), tool-art.js (TOOL_ART), this file.
-		
+		// surface.js + noto-blow*.js + surface-anims.js (sf*, SF_DEFS), tool-art.js (TOOL_ART, taPose), this file.
+
 		const NS = 'http://www.w3.org/2000/svg';
 		const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-		
+
 		// ============================================================================ whale tail
 		// Everything is drawn into one canvas: the built-in and official loops as tinted 28x28 alpha frames, the
 		// surface loops and the transition frames as vector strokes. Loops follow each other without a visible cut:
@@ -722,7 +720,7 @@ window.__ModuleLoader__.load({
 		const DIVE_ENTER = { fluke: 3.3, spout: 0.98 };   // and here (hand-off in, after an official loop sank)
 		const isOff = (n) => OFF_NAMES.includes(n);
 		const isDive = (n) => n in DIVE_CUT;
-		
+
 		/** Shuffle-bag order: every loop plays once per round, never the same one twice in a row. */
 		function createBag(first) {
 		  let bag = [];
@@ -739,7 +737,7 @@ window.__ModuleLoader__.load({
 		  };
 		}
 		const sharedBag = createBag(null);
-		
+
 		// Canvas: 1.75 px per viewBox unit (the 28 px frames' density); the 16-unit icon box sits on whole pixels
 		// at (10, 10), so frames are drawn 1:1, with 40/7 units of room on every side for water and blows.
 		const CV_K = 1.75, CV_PAD = 40 / 7, CV_BOX = 10, CV_SIZE = 48;
@@ -757,7 +755,7 @@ window.__ModuleLoader__.load({
 		};
 		const FIT_AX = CV_BOX + RIG_MODEL.base[0] * CV_K, FIT_AY = CV_BOX + WATER_PX;
 		const smoother = (k) => k * k * k * (k * (k * 6 - 15) + 10);
-		
+
 		let IMGS = null;
 		function frameImages() {
 		  if (IMGS) return IMGS;
@@ -785,7 +783,7 @@ window.__ModuleLoader__.load({
 		  });
 		  return IMGS;
 		}
-		
+
 		/**
 		 * @param only - pin one loop by name
 		 * @param perTurn - keep one randomly chosen loop for the whole appearance instead of switching each loop
@@ -804,14 +802,14 @@ window.__ModuleLoader__.load({
 		  const scratch = () => { const c = document.createElement('canvas'); c.width = c.height = 28; return c; };
 		  const sA = scratch(), sB = scratch(), sM = scratch();
 		  const xA = sA.getContext('2d'), xB = sB.getContext('2d'), xM = sM.getContext('2d');
-		
+
 		  let pick;
 		  if (order) { let i = 0; pick = () => order[i++ % order.length]; }
 		  else if (only) pick = () => only;
 		  else if (perTurn) { const one = sharedBag(); pick = () => one; }
 		  else pick = createBag('original');
 		  let color = '', colorAt = -1;
-		
+
 		  // ---------------------------------------------------------------- drawing
 		  /** a 28x28 alpha frame filled with the current colour; the official frames are stacked twice, since they
 		   *  came out of a video lighter than the built-in frames */
@@ -905,7 +903,7 @@ window.__ModuleLoader__.load({
 		    sfRipple(fr, t, t0 + 0.14, 0.7, 7.4, 1.0 * size, 4.2 * size, 0.4, 0.22);
 		    drawSurf(fr);
 		  }
-		
+
 		  // ---------------------------------------------------------------- transition frames (3D rig)
 		  const REST = sfRestPose();
 		  // the fitted poses were fitted to the official frames as they came; move them with the frames (OFF_FIT:
@@ -939,7 +937,7 @@ window.__ModuleLoader__.load({
 		      },
 		    };
 		  }
-		
+
 		  // ---------------------------------------------------------------- clips
 		  function origClip() {
 		    return {
@@ -987,7 +985,7 @@ window.__ModuleLoader__.load({
 		      after: o.cut ? (start) => overlays.push({ start, dur: 1.4, draw: (t) => drawSurf(sfFrame(n, t1 + t, { noTail: true, fxMax: t1 })) }) : null,
 		    };
 		  }
-		
+
 		  /** the clips that play loop `cur`, given the loops before and after it */
 		  function buildLoop(prev, cur, next) {
 		    if (cur === 'original') return [origClip()];
@@ -1012,7 +1010,7 @@ window.__ModuleLoader__.load({
 		    out.push(surfClip(cur, t0, t1, { fxMin: t0 > 0 ? t0 : undefined, cut: t1 < P }));
 		    return out;
 		  }
-		
+
 		  // ---------------------------------------------------------------- player
 		  let queue = [], clip = null, clipStart = 0, overlays = [];
 		  let prevName = null, nextName = null;
@@ -1022,7 +1020,7 @@ window.__ModuleLoader__.load({
 		    queue.push(...buildLoop(prevName, cur, nextName));
 		    prevName = cur;
 		  }
-		
+
 		  function render(nowS) {
 		    if (nowS - colorAt > 0.5 || colorAt < 0) { color = getComputedStyle(el).color; colorAt = nowS; }
 		    if (!clip) { if (!queue.length) enqueueLoop(); clip = queue.shift(); clipStart = nowS; }
@@ -1038,7 +1036,7 @@ window.__ModuleLoader__.load({
 		    for (const ov of overlays) ov.draw(nowS - ov.start);
 		    clip.draw(nowS - clipStart);
 		  }
-		
+
 		  function still() {
 		    color = getComputedStyle(el).color;
 		    const img = restImg();
@@ -1047,7 +1045,7 @@ window.__ModuleLoader__.load({
 		  }
 		  return { el, render, still, state: () => ({ clip: clip && clip.kind, clipStart, prevName, nextName }) };
 		}
-		
+
 		// ============================================================================ runtime
 		const CSS = `
 		[data-chat-running] [class*="runningIcon"]{overflow:visible!important;contain:none!important}
@@ -1056,27 +1054,17 @@ window.__ModuleLoader__.load({
 		.dshm-cv{position:absolute;left:-35.7143%;top:-35.7143%;width:171.4286%;height:171.4286%}
 		.dshm-lead{position:relative}
 		.dshm-lead.dshm-active>:not(.dshm-tool){opacity:0}
-		.dshm-tool{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;overflow:visible;pointer-events:none;color:inherit}
+		.dshm-tool{position:absolute;overflow:visible;pointer-events:none;color:inherit}
 		[data-disclosure-row]:hover .dshm-lead.dshm-active>:not(.dshm-tool),
 		[data-disclosure-row][aria-expanded="true"] .dshm-lead.dshm-active>:not(.dshm-tool){opacity:1}
 		[data-disclosure-row]:hover .dshm-tool,[data-disclosure-row][aria-expanded="true"] .dshm-tool{opacity:0}
 		.dshm-ring{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;overflow:visible;pointer-events:none}
 		.dshm-ring circle{fill:none;stroke:currentColor;stroke-width:1;stroke-linecap:round}
-		.dshm-done .dshm-ring circle{stroke-dasharray:63;stroke-dashoffset:63;transform:rotate(-90deg);transform-origin:11px 11px;animation:dshm-close .42s cubic-bezier(.3,0,.2,1) forwards,dshm-fade .32s .48s ease forwards}
-		.dshm-done>:not(.dshm-ring){animation:dshm-pop .5s cubic-bezier(.3,1.6,.5,1)}
-		.dshm-fail{animation:dshm-shake .42s cubic-bezier(.36,.07,.19,.97)}
 		.dshm-fail .dshm-ring{color:var(--dsw-alias-state-error-primary,#e5484d)}
-		.dshm-fail .dshm-ring circle{stroke-dasharray:4 3;animation:dshm-burst .6s ease-out forwards}
-		@keyframes dshm-close{to{stroke-dashoffset:0}}
-		@keyframes dshm-fade{to{opacity:0}}
-		@keyframes dshm-pop{0%{transform:scale(.55)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
-		@keyframes dshm-shake{20%,60%{transform:translateX(-2px)}40%,80%{transform:translateX(2px)}}
-		@keyframes dshm-burst{0%{transform:scale(.7) rotate(0);transform-origin:11px 11px;opacity:1}100%{transform:scale(1.25) rotate(40deg);transform-origin:11px 11px;opacity:0}}
-		@media (prefers-reduced-motion:reduce){.dshm-done>*,.dshm-fail,.dshm-ring circle{animation:none!important}}
 		`;
-		
+
 		const ACTIVE_STATES = new Set(['running', 'preparing']);
-		
+
 		function createMotion(options = {}) {
 		  let style = null;
 		  let observer = null;
@@ -1087,53 +1075,86 @@ window.__ModuleLoader__.load({
 		  const only = POOL.includes(options.whale) ? options.whale : null;
 		  const perTurn = options.whaleMode === 'turn';
 		  const tails = new Map();     // running-status icon element → whale controller
-		  const tools = new Map();     // tool row root → { lead, svg, variant, t0 }
+		  const tools = new Map();     // tool row root → { lead, svg, parts, variant, t0, end }
+		  const rings = new Set();     // finish rings: { lead, svg, circle, t0, ok }
 		  const lastState = new WeakMap();
-		
+
 		  function leadOf(row) {
 		    return row.querySelector('[data-disclosure-row] [class*="leading"]');
 		  }
-		
+
+		  // the host's own icon, cloned and laid exactly over it; its parts move (tool-art.js)
 		  function startTool(row) {
 		    const lead = leadOf(row);
 		    if (!lead) return;
-		    const variant = TOOL_ART[row.getAttribute('data-variant')] ? row.getAttribute('data-variant') : 'others';
-		    const svg = document.createElementNS(NS, 'svg');
+		    const icon = [...lead.children].find((c) => c.tagName.toLowerCase() === 'svg' && !c.classList.contains('dshm-tool'));
+		    if (!icon) return;
+		    const svg = icon.cloneNode(true);
 		    svg.setAttribute('class', 'dshm-tool');
-		    svg.setAttribute('viewBox', '0 0 16 16');
-		    svg.setAttribute('fill', 'none');
 		    svg.setAttribute('aria-hidden', 'true');
+		    const rl = lead.getBoundingClientRect(), ri = icon.getBoundingClientRect();
+		    svg.style.cssText = `left:${ri.left - rl.left}px;top:${ri.top - rl.top}px;width:${ri.width}px;height:${ri.height}px`;
 		    lead.classList.add('dshm-lead', 'dshm-active');
 		    lead.appendChild(svg);
-		    tools.set(row, { lead, svg, variant, t0: performance.now() });
-		    svg.innerHTML = TOOL_ART[variant](reduced ? 0.4 : 0);
+		    const variant = row.getAttribute('data-variant') || 'others';
+		    tools.set(row, { lead, svg, parts: taParts(svg), variant, t0: performance.now(), end: 0 });
 		  }
-		
+
+		  // amplitude: eases in from the still icon at the start, back to it at the end
+		  function poseTool(entry, now) {
+		    const t = (now - entry.t0) / 1000;
+		    let a = sfSmooth(Math.min(1, t / 0.35));
+		    if (entry.end) a *= 1 - sfSmooth(Math.min(1, (now - entry.end) / 480));
+		    taPose(entry.variant, entry.parts, t, a);
+		    return !entry.end || now - entry.end < 480;
+		  }
+
 		  function stopTool(row, outcome) {
 		    const entry = tools.get(row);
-		    tools.delete(row);
 		    const lead = entry ? entry.lead : leadOf(row);
 		    if (entry) {
-		      entry.svg.remove();
-		      lead.classList.remove('dshm-active');
+		      entry.end = performance.now();
+		      if (reduced) { tools.delete(row); entry.svg.remove(); lead.classList.remove('dshm-active'); }
 		    }
-		    if (!lead || !lead.isConnected || reduced) return;
-		    if (outcome !== 'ok' && outcome !== 'error') return;
+		    if (!lead || !lead.isConnected || reduced || (outcome !== 'ok' && outcome !== 'error')) return;
+		    for (const r of rings) if (r.lead === lead) { r.svg.remove(); rings.delete(r); }
 		    lead.classList.add('dshm-lead');
-		    const ring = document.createElementNS(NS, 'svg');
-		    ring.setAttribute('class', 'dshm-ring');
-		    ring.setAttribute('viewBox', '0 0 22 22');
-		    ring.setAttribute('aria-hidden', 'true');
-		    ring.innerHTML = '<circle cx="11" cy="11" r="10"/>';
-		    lead.appendChild(ring);
-		    const cls = outcome === 'ok' ? 'dshm-done' : 'dshm-fail';
-		    lead.classList.add(cls);
-		    setTimeout(() => {
-		      ring.remove();
-		      lead.classList.remove(cls);
-		    }, 900);
+		    lead.classList.toggle('dshm-fail', outcome !== 'ok');
+		    const svg = document.createElementNS(NS, 'svg');
+		    svg.setAttribute('class', 'dshm-ring');
+		    svg.setAttribute('viewBox', '0 0 22 22');
+		    svg.setAttribute('aria-hidden', 'true');
+		    svg.innerHTML = '<circle cx="11" cy="11" r="10" pathLength="1"/>';
+		    lead.appendChild(svg);
+		    rings.add({ lead, svg, circle: svg.firstChild, t0: performance.now(), ok: outcome === 'ok' });
+		    if (!raf) raf = requestAnimationFrame(frame);
 		  }
-		
+
+		  // ok: a hairline ring draws itself round the settling icon, then fades. error: the row shakes once and a
+		  // dashed ring bursts outward. Driven here (not CSS) so it shares the icon's clock.
+		  function poseRing(r, now) {
+		    const t = (now - r.t0) / 1000;
+		    if (r.ok) {
+		      const k = sfSeg(t, 0.08, 0.58), draw = 1 - Math.pow(1 - k, 3);
+		      r.circle.setAttribute('stroke-dasharray', `${draw} 1`);
+		      r.circle.setAttribute('transform', 'rotate(-90 11 11)');
+		      r.circle.setAttribute('stroke-opacity', String(sfSmooth(sfSeg(t, 0.08, 0.2))));
+		      r.svg.style.opacity = String(1 - sfSmooth(sfSeg(t, 0.6, 0.92)));
+		    } else {
+		      const k = sfSeg(t, 0, 0.6), e = 1 - Math.pow(1 - k, 2);
+		      r.circle.setAttribute('stroke-dasharray', '0.064 0.048');
+		      r.circle.setAttribute('transform', `rotate(${40 * e} 11 11) translate(11 11) scale(${0.7 + 0.55 * e}) translate(-11 -11)`);
+		      r.svg.style.opacity = String(1 - e);
+		      const sk = sfSeg(t, 0, 0.42);
+		      r.lead.style.transform = sk < 1 ? `translateX(${(2 * Math.sin(sk * Math.PI * 4) * (1 - sk)).toFixed(2)}px)` : '';
+		    }
+		    if (t < 1) return true;
+		    r.svg.remove();
+		    r.lead.style.transform = '';
+		    r.lead.classList.remove('dshm-fail');
+		    return false;
+		  }
+
 		  function scan() {
 		    scanQueued = false;
 		    if (disposed) return;
@@ -1152,30 +1173,36 @@ window.__ModuleLoader__.load({
 		      const prev = lastState.get(row);
 		      if (prev === state) continue;
 		      lastState.set(row, state);
-		      if (ACTIVE_STATES.has(state)) { if (!tools.has(row)) startTool(row); }
+		      if (ACTIVE_STATES.has(state)) { const e = tools.get(row); if (!e || e.end) { if (e) { e.svg.remove(); tools.delete(row); } startTool(row); } }
 		      else if (prev !== undefined && ACTIVE_STATES.has(prev)) stopTool(row, state);
 		    }
 		    for (const [row, entry] of tools) {
 		      if (!row.isConnected) tools.delete(row);
 		      else if (!entry.svg.isConnected) { tools.delete(row); lastState.delete(row); }
 		    }
-		    if (!reduced && (tails.size || tools.size) && !raf) raf = requestAnimationFrame(frame);
+		    if (!reduced && (tails.size || tools.size || rings.size) && !raf) raf = requestAnimationFrame(frame);
 		  }
-		
+
 		  function queueScan() {
 		    if (scanQueued || disposed) return;
 		    scanQueued = true;
 		    requestAnimationFrame(scan);
 		  }
-		
+
 		  function frame(now) {
 		    raf = 0;
 		    if (disposed) return;
 		    for (const whale of tails.values()) whale.render(now / 1000);
-		    for (const entry of tools.values()) entry.svg.innerHTML = TOOL_ART[entry.variant]((now - entry.t0) / 1000);
-		    if (tails.size || tools.size) raf = requestAnimationFrame(frame);
+		    for (const [row, entry] of tools) {
+		      if (poseTool(entry, now)) continue;
+		      tools.delete(row);
+		      entry.svg.remove();
+		      entry.lead.classList.remove('dshm-active');
+		    }
+		    for (const r of rings) if (!poseRing(r, now)) rings.delete(r);
+		    if (tails.size || tools.size || rings.size) raf = requestAnimationFrame(frame);
 		  }
-		
+
 		  return {
 		    start() {
 		      style = document.createElement('style');
@@ -1193,14 +1220,16 @@ window.__ModuleLoader__.load({
 		      for (const whale of tails.values()) whale.el.remove();
 		      for (const entry of tools.values()) { entry.svg.remove(); entry.lead.classList.remove('dshm-active', 'dshm-lead'); }
 		      document.querySelectorAll('.dshm-ring').forEach((e) => e.remove());
-		      document.querySelectorAll('.dshm-lead').forEach((e) => e.classList.remove('dshm-lead', 'dshm-done', 'dshm-fail', 'dshm-active'));
+		      for (const r of rings) r.lead.style.transform = '';
+		      document.querySelectorAll('.dshm-lead').forEach((e) => e.classList.remove('dshm-lead', 'dshm-fail', 'dshm-active'));
 		      tails.clear();
 		      tools.clear();
+		      rings.clear();
 		      style?.remove();
 		    },
 		  };
 		}
-		
+
 		/**
 		 * Client plugin entry.
 		 * @param ctx - browser plugin context; the effect disposer removes every injected node.
@@ -1211,7 +1240,7 @@ window.__ModuleLoader__.load({
 		  motion.start();
 		  ctx.effect(() => () => motion.stop());
 		}
-		
+
 		exports.apply = apply;
 		// for the test pages
 		exports.createWhale = createWhale;
