@@ -40,6 +40,16 @@ function parseTimes(s) {
   }
   return s.split(',').map(Number);
 }
+// &spin=r,g,b — hand the splash a measured spinner record whose arc has that colour (track: same rgb at 12%),
+// to check how the canvas adopts a restyled spinner. Without it the exit gets no record (fallback mode).
+function fakeSpec(w) {
+  if (!Q.get('spin')) return null;
+  const c = Q.get('spin');
+  const box = { text: '', x: 0, y: 0, w: 1, h: 1, font: '16px sans-serif', letterSpacing: 'normal', color: 'rgb(' + c + ')' };
+  return { vw: w.innerWidth, vh: w.innerHeight, phase: 0, dur: 800, at: Date.now(), wordmark: box, hint: box,
+    spinner: { cx: VW / 2, cy: VH / 2 + 3, size: 20, bw: 2, border: 'rgba(' + c + ', 0.12)' },
+    after: { background: 'conic-gradient(rgb(' + c + ') 0deg, rgb(' + c + ') 72deg, rgba(0, 0, 0, 0) 72deg)', mask: 'none' } };
+}
 const times = parseTimes(Q.get('times'));
 const stage = document.getElementById('stage');
 stage.style.width = VW + 'px';
@@ -70,7 +80,7 @@ function runScan(w) {
   let prev = null, asked = false;
   const series = [], costs = [];
   while (lab.now() < scanArg[1] * 1000) {
-    if (!asked && lab.now() >= exitAt * 1000) { asked = true; w.__dshSplashExit && w.__dshSplashExit(null); }
+    if (!asked && lab.now() >= exitAt * 1000) { asked = true; w.__dshSplashExit && w.__dshSplashExit(fakeSpec(w)); }
     const ms = lab.step(STEP);
     const t = lab.now() / 1000;
     if (t > 0.6) costs.push(ms);
@@ -129,7 +139,7 @@ function run(w) {
   const end = Math.max(...times);
   while (i < times.length) {
     const T = times[i] * 1000;
-    if (!asked && lab.now() >= exitAt * 1000) { asked = true; w.__dshSplashExit && w.__dshSplashExit(null); }
+    if (!asked && lab.now() >= exitAt * 1000) { asked = true; w.__dshSplashExit && w.__dshSplashExit(fakeSpec(w)); }
     if (lab.now() + 1e-6 >= T) {
       // capture this frame
       const k = fx.width / VW;

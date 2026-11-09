@@ -40,6 +40,7 @@ function frame(now) {
   const ex = exitAt < 0 ? 0 : clamp01((t - exitAt) / EXIT_DUR);
   const ek = inOutCubic(ex);
   ctx.clearRect(0, 0, W, H);
+  tintToSpinner(ex);
   drawCorners(t, ex);
   scene.frame(t, ex, ek);
   if (handoffSpec) {
@@ -88,6 +89,7 @@ function placeText(el, m) {
 function applySpec(spec) {
   if (!validSpec(spec)) return false;
   handoffSpec = spec;
+  adoptSpinnerColors(spec);
   const s = spec.spinner;
   HX = s.cx;
   HY = s.cy;

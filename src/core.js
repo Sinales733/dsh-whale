@@ -17,7 +17,7 @@ if (light) document.documentElement.classList.add('light');
 
 const FG = light ? '15,17,21' : '249,250,251';
 const BG = light ? '#ffffff' : '#151517';
-const RING_ALPHA = light ? 0.1 : 0.12; // web app boot spinner track (--dsh-boot-border)
+let RING_ALPHA = light ? 0.1 : 0.12;   // web app boot spinner track (--dsh-boot-border); measured at hand-off
 let SPIN_R = 9;                        // spinner track centre-line radius; replaced by the measured value at hand-off
 const MONO = 'Consolas, "Cascadia Mono", monospace';
 
@@ -49,7 +49,31 @@ const inOutSine = (k) => -(Math.cos(Math.PI * k) - 1) / 2;
 const smooth = (k) => k * k * (3 - 2 * k);
 const fract = (v) => v - Math.floor(v);
 const hash = (n) => fract(Math.sin(n * 127.1 + 311.7) * 43758.5453);
-const col = (a) => `rgba(${FG},${a < 0 ? 0 : a > 1 ? 1 : a})`;
+let fgNow = FG;
+const col = (a) => `rgba(${fgNow},${a < 0 ? 0 : a > 1 ? 1 : a})`;
+
+// The boot spinner is styled by the web app (and by anything that restyles it). At hand-off its measured
+// colours replace the built-in ones: the track alpha at once (scenes only ease toward RING_ALPHA during the
+// exit), the ink colour gradually over ex 0.55–0.85, while only the ring and arc are left.
+const FG0 = FG.split(',').map(Number);
+let fgEnd = null;
+function parseColor(s) {
+  const m = /rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)/.exec(s || '');
+  if (!m) return null;
+  const a = m[4] === undefined ? 1 : m[4].endsWith('%') ? parseFloat(m[4]) / 100 : Number(m[4]);
+  return [Number(m[1]), Number(m[2]), Number(m[3]), a];
+}
+function adoptSpinnerColors(spec) {
+  const arcC = parseColor(spec.after && spec.after.background);
+  const ringC = parseColor(spec.spinner && spec.spinner.border);
+  if (arcC && arcC[3] > 0.5) fgEnd = arcC.slice(0, 3);
+  if (ringC && ringC[3] > 0 && ringC[3] < 1) RING_ALPHA = ringC[3];
+}
+function tintToSpinner(ex) {
+  if (!fgEnd) return;
+  const k = smooth(seg(ex, 0.55, 0.85));
+  fgNow = FG0.map((v, i) => Math.round(lerp(v, fgEnd[i], k))).join(',');
+}
 const pad = (n, w) => String(n).padStart(w, '0');
 
 // ---------------------------------------------------------------- layout
