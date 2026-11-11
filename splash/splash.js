@@ -3714,6 +3714,473 @@ SCENES.echo = (() => {
   };
 })();
 
+// ===== scene: CHLADNI — sand on a vibrating plate settles into the whale =======================
+// A string of sand is drawn, hums, and opens into the plate, stretching its sand across it. Driven at one resonance
+// and then another, the grains jump to the nodal lines; at the last frequency the nodal line is the whale. While
+// waiting, the outline breathes and a ripple crosses the plate now and then. On exit the whale is reeled in like a
+// thread: each loop of the outline runs off through its point nearest the spinner, down a taut feeder, and is wound
+// onto the ring, which lights up and gathers into the progress arc.
+SCENES.chladni = (() => {
+  const NP = 3200, NW = 2000;
+  const WIND = 44;         // px of ring a grain travels while it is taken up
+  let Rp = 0, whale = null, hz = 180, modeTxt = '—';
+  let P0, P1, P2, P3, NX, NY, KI, H1, H2, H3, ON, GD, GJ, GDIR;
+  let pts = null, SUB = [], DMAX = 1;
+  const fn = (x, y, n, m, s) => Math.cos(n * Math.PI * x) * Math.cos(m * Math.PI * y) + s * Math.cos(m * Math.PI * x) * Math.cos(n * Math.PI * y);
+  // slide a point down |f| onto the nearest nodal line (damped Newton steps)
+  function settle(x, y, n, m, s) {
+    const e = 1e-3;
+    for (let i = 0; i < 40; i++) {
+      const v = fn(x, y, n, m, s);
+      const gx = (fn(x + e, y, n, m, s) - fn(x - e, y, n, m, s)) / (2 * e);
+      const gy = (fn(x, y + e, n, m, s) - fn(x, y - e, n, m, s)) / (2 * e);
+      const g2 = gx * gx + gy * gy + 1e-4;
+      let dx = (-0.6 * v * gx) / g2, dy = (-0.6 * v * gy) / g2;
+      const d = Math.hypot(dx, dy);
+      if (d > 0.04) { dx *= 0.04 / d; dy *= 0.04 / d; }
+      x = Math.min(0.995, Math.max(0.005, x + dx));
+      y = Math.min(0.995, Math.max(0.005, y + dy));
+    }
+    return [x, y];
+  }
+  const outBack = (k) => 1 + 2.3 * Math.pow(k - 1, 3) + 1.3 * Math.pow(k - 1, 2);   // lands with a small overshoot
+  // the string's hum: it swells while the string waits, and dies out as the plate opens
+  const humA = (t) => 11 * S * smooth(seg(t, 0.16, 0.5)) * (1 - smooth(seg(t, 0.5, 0.7)));
+  const hum = (x, t) => humA(t) * Math.sin((TAU * (x - (CX - Rp))) / (2 * Rp)) * Math.sin(t * 34);
+
+  return {
+    label: 'CHLADNI',
+    readyAt: 3.6,
+    titleAt: 2.05,
+    exitDur: 1.25,
+    spinnerIn: 0.88,   // the wound ring gathers into the spinner's arc
+    layout() {
+      Rp = 214 * S;
+      whale = makeWhale(CX, CY, 232 * S);
+      const cont = whaleContour(whale, NW);
+      pts = cont.pts;
+      const inside = whaleMask(whale, 5 * S);
+      const F32 = (n) => new Float32Array(n);
+      P0 = F32(NP * 2); P1 = F32(NP * 2); P2 = F32(NP * 2); P3 = F32(NP * 2);
+      NX = F32(NP); NY = F32(NP); KI = F32(NP); H1 = F32(NP); H2 = F32(NP); H3 = F32(NP); GD = F32(NP);
+      ON = new Uint8Array(NP); GJ = new Uint8Array(NP); GDIR = new Int8Array(NP);
+      const X = (u) => CX + (u - 0.5) * 2 * Rp, Y = (v) => CY + (v - 0.5) * 2 * Rp;
+
+      // exit: the outline's loops, each cut at its point nearest the spinner, with a feeder tangent to the ring
+      // (arriving clockwise, the way the spinner turns)
+      const starts = [0, ...[...cont.breaks].sort((a, b) => a - b), NW];
+      SUB = [];
+      for (let j = 0; j + 1 < starts.length; j++) {
+        const s = starts[j], n = starts[j + 1] - s;
+        const closed = Math.hypot(pts[s][0] - pts[s + n - 1][0], pts[s][1] - pts[s + n - 1][1]) < 3 * S;
+        const M = closed ? n - 1 : n;
+        let per = 0, m = 0, best = 1e9;
+        for (let i = 0; i < M; i++) {
+          const a = pts[s + i], b = pts[s + ((i + 1) % M)];
+          per += Math.hypot(b[0] - a[0], b[1] - a[1]);
+          const d = Math.hypot(a[0] - HX, a[1] - HY);
+          if (d < best) { best = d; m = i; }
+        }
+        const E = pts[s + m], d = Math.max(SPIN_R + 1, best);
+        const beta = Math.atan2(E[1] - HY, E[0] - HX) + Math.acos(SPIN_R / d);
+        SUB.push({ s, M, m, ds: per / M, ex: E[0], ey: E[1], beta, f: Math.sqrt(d * d - SPIN_R * SPIN_R), tx: HX + Math.cos(beta) * SPIN_R, ty: HY + Math.sin(beta) * SPIN_R });
+      }
+      const subOf = (k) => { let j = 0; while (j + 1 < SUB.length && k >= SUB[j + 1].s) j++; return j; };
+      DMAX = 1;
+
+      for (let i = 0; i < NP; i++) {
+        H1[i] = hash(i * 3 + 1); H2[i] = hash(i * 3 + 2); H3[i] = hash(i * 3 + 3);
+        const u = hash(i + 0.37), v = hash(i * 1.7 + 9.1);
+        const a = settle(u, v, 3, 5, -1), b = settle(hash(i * 2.3 + 0.7), hash(i * 3.1 + 5.2), 2, 7, -1);
+        P0[i * 2] = X(u); P0[i * 2 + 1] = Y(v);
+        P1[i * 2] = X(a[0]); P1[i * 2 + 1] = Y(a[1]);
+        P2[i * 2] = X(b[0]); P2[i * 2 + 1] = Y(b[1]);
+        // the first NW grains, and any other that would be left lying inside the glyph, go to its outline
+        if (i < NW || inside(P2[i * 2], P2[i * 2 + 1]) > 0.02) {
+          const k = (i * 733) % NW;
+          let k0 = Math.max(0, k - 2), k1 = Math.min(NW - 1, k + 2);
+          for (let j = k0 + 1; j <= k1; j++) if (cont.breaks.has(j)) { if (j <= k) k0 = j; else { k1 = j - 1; break; } }
+          const tx = pts[k1][0] - pts[k0][0], ty = pts[k1][1] - pts[k0][1], tl = Math.hypot(tx, ty) || 1;
+          NX[i] = -ty / tl; NY[i] = tx / tl; KI[i] = k; ON[i] = 1;
+          P3[i * 2] = pts[k][0] + (H1[i] - 0.5) * 2.6 * S; P3[i * 2 + 1] = pts[k][1] + (H2[i] - 0.5) * 2.6 * S;
+          // its way out: the shorter way round its loop to the cut
+          const j = subOf(k), sb = SUB[j], o = (((k - sb.s - sb.m) % sb.M) + sb.M) % sb.M;
+          GJ[i] = j;
+          if (o <= sb.M / 2) { GDIR[i] = -1; GD[i] = o * sb.ds; } else { GDIR[i] = 1; GD[i] = (sb.M - o) * sb.ds; }
+          DMAX = Math.max(DMAX, GD[i] + sb.f);
+        } else { P3[i * 2] = P2[i * 2]; P3[i * 2 + 1] = P2[i * 2 + 1]; }
+      }
+    },
+    readout: () => `ƒ ${pad(Math.round(hz), 4)} HZ\nMODE ${modeTxt}`,
+    frame(t, ex, ek) {
+      const sA = seg(t, 0.75, 1.35), sB = seg(t, 1.35, 1.95), sC = seg(t, 2.0, 2.8);
+      const A = inOutCubic(sA), B = inOutCubic(sB), C = inOutCubic(sC);
+      hz = lerp(lerp(lerp(180, 742, A), 1586, B), 2954, C) + 3 * Math.sin(t * 2.3);
+      modeTxt = C > 0.5 ? 'CETACEA' : B > 0.5 ? '2·7' : A > 0.5 ? '3·5' : '—';
+      // how hard the plate is being driven: a burst at each change of frequency
+      const drive = Math.sin(Math.PI * sA) + Math.sin(Math.PI * sB) + Math.sin(Math.PI * sC);
+      // while waiting, a ripple crosses the plate from the centre every few seconds
+      const PER = 3.4, tau = t > 3.2 && !exiting ? (t - 3.2) % PER : -1;
+      const rEnv = tau < 0 ? 0 : smooth(seg(tau, 0, 0.18)) * (1 - smooth(seg(tau, 0.85, 1.3)));
+      const front = tau * 360 * S, rw = 1 / (32 * S);
+      const Lx = CX - Rp, Rx = CX + Rp, Ty = CY - Rp, By = CY + Rp;
+
+      // opening: the string's half-length, and how far it has opened into the plate
+      const half = Rp * inOutCubic(seg(t, 0.05, 0.42)), span = Rp * outBack(seg(t, 0.5, 0.98));
+      // exit: every edge draws back to its midpoint, and takes its ticks with it
+      const re = 1 - inOutCubic(seg(ex, 0, 0.32)), h = Rp * re, m = 10 * S;
+
+      // ---- plate
+      ctx.lineWidth = 1;
+      if (t < 1.2 && !exiting) {
+        ctx.strokeStyle = col(lerp(0.55, 0.3, smooth(seg(t, 0.5, 0.9))));
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        for (const sgn of span > 0.5 ? [-1, 1] : [1]) {
+          for (let i = 0; i <= 72; i++) {
+            const x = CX - half + (2 * half * i) / 72, y = CY + sgn * span + hum(x, t);
+            if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+          }
+        }
+        if (span > 0.5) { ctx.moveTo(Lx, CY - span); ctx.lineTo(Lx, CY + span); ctx.moveTo(Rx, CY - span); ctx.lineTo(Rx, CY + span); }
+        ctx.stroke();
+        ctx.lineJoin = 'miter';
+        // the two pen tips that draw the string
+        const pa = 0.9 * smooth(seg(t, 0.05, 0.1)) * (1 - smooth(seg(t, 0.36, 0.48)));
+        dot(CX - half, CY, 2, pa); dot(CX + half, CY, 2, pa);
+      } else if (re > 0.003) {
+        line(CX - h, Ty, CX + h, Ty, 0.3); line(CX - h, By, CX + h, By, 0.3);
+        line(Lx, CY - h, Lx, CY + h, 0.3); line(Rx, CY - h, Rx, CY + h, 0.3);
+      }
+
+      // ---- ticks, driver, frequency scale, drive signal
+      {
+        const tk = seg(t, 0.9, 1.25), yBot = CY + span;
+        for (let i = 0; i <= 20; i++) {
+          const d = (-1 + i / 10) * Rp, L = (i % 5 === 0 ? 7 : 3) * S * tk;
+          line(CX + d, yBot, CX + d, yBot + L * smooth(clamp01((h + m * re - Math.abs(d)) / m)), 0.26);
+          line(Lx, CY + d, Lx - L * smooth(clamp01((Math.min(span, h) + m * re - Math.abs(d)) / m)), CY + d, 0.26);
+        }
+        const dk = smooth(seg(t, 0.6, 1.0)) * (1 - 0.75 * C) * re;
+        arc(CX, CY, 4 * S * re, 0, TAU, 0.4 * dk);
+        arc(CX, CY, (11 + 2.5 * Math.sin(t * 9)) * S * re, 0, TAU, 0.16 * dk * (0.4 + 0.6 * Math.min(1, drive)));
+        if (rEnv > 0) arc(CX, CY, Math.max(1, front), 0, TAU, 0.1 * rEnv);
+
+        // the scale opens with the plate; its marker climbs with the frequency
+        const sx = Rx + 34 * S, sh = span * re, sk = smooth(seg(t, 0.55, 0.85)) * re;
+        if (sh > 0.5) {
+          line(sx, CY - sh, sx, CY + sh, 0.24);
+          for (let i = 0; i <= 12; i++) line(sx, CY - sh + (2 * sh * i) / 12, sx + (i % 3 === 0 ? 7 : 3) * S * sk, CY - sh + (2 * sh * i) / 12, 0.26);
+          const my = CY + sh - 2 * sh * (hz / 3200);
+          line(sx - 9 * S * sk, my, sx + 12 * S * sk, my, 0.8 * sk, 1.2);
+          text(`${Math.round(hz / 2) * 2} Hz`, sx + 18 * S, my, 0.5 * sk * (1 - seg(ex, 0, 0.2)), 9.5);
+        }
+
+        // the drive signal: it leaves the bottom edge once the plate is open; its pitch rises with the frequency
+        const dn = smooth(seg(t, 0.9, 1.3)), sa = 0.42 * dn;
+        if (sa > 0.003 && re > 0.003) {
+          const y0 = By + 30 * S * dn, amp = (2.5 + 5 * Math.min(1, drive) + 3 * rEnv) * S * re * dn, kx = (TAU * hz) / 200 / (2 * Rp);
+          ctx.strokeStyle = col(sa);
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          for (let i = 0; i <= 220; i++) {
+            const u = i / 220, x = CX - h + 2 * h * u;
+            const y = y0 + amp * Math.sin(4 * u * (1 - u)) * Math.sin((x - CX) * kx - t * 14);
+            if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+          }
+          ctx.stroke();
+          ctx.lineJoin = 'miter';
+        }
+      }
+
+      // ---- grains
+      const shake = 2.4 * S * drive;
+      // exit: how far the thread has been pulled; just before, it draws taut (the sandy line turns crisp)
+      const adv = (DMAX + WIND + 6) * inOutCubic(seg(ex, 0.03, 0.74));
+      const jit = lerp(1, 0.3, smooth(seg(ex, 0, 0.1))), keep = 1 - smooth(seg(ex, 0, 0.1));
+      const lit = new Path2D(), dim = new Path2D();
+      for (let i = 0; i < NP; i++) {
+        const on = ON[i];
+        let sz = 1 + 0.7 * H2[i];
+        const d = 0.15 * H1[i];
+        const a = inOutCubic(seg(t, 0.75 + d, 1.2 + d)), b = inOutCubic(seg(t, 1.35 + d, 1.8 + d)), c = inOutCubic(seg(t, 2.0 + d * 1.5, 2.55 + d * 1.5));
+        let x = P0[i * 2], y = P0[i * 2 + 1];
+        if (a < 1) {
+          // the sand lies along the string, and is stretched over the plate as it opens
+          const g = smooth(clamp01((half - Math.abs(x - CX)) / (12 * S)));
+          if (g <= 0) continue;
+          sz *= g;
+          y = CY + (y - CY) * outBack(seg(t, 0.5 + 0.08 * H1[i], 0.98 + 0.08 * H1[i])) + hum(x, t);
+        }
+        x = lerp(lerp(lerp(x, P1[i * 2], a), P2[i * 2], b), P3[i * 2], c);
+        y = lerp(lerp(lerp(y, P1[i * 2 + 1], a), P2[i * 2 + 1], b), P3[i * 2 + 1], c);
+        let sh = shake;
+        if (rEnv > 0) { const q = (Math.hypot(x - CX, y - CY) - front) * rw; sh += 1.7 * S * rEnv * Math.exp(-q * q); }
+        x += sh * Math.sin(t * 21 + H2[i] * 40);
+        y += sh * Math.cos(t * 19 + H3[i] * 40);
+        if (on) { const bn = 1.1 * S * c * Math.sin(t * 1.3 - KI[i] * 0.011); x += NX[i] * bn; y += NY[i] * bn; }
+
+        if (exiting && !on) {
+          // the sand that is not the whale is shaken away
+          sz *= 1 - smooth(seg(ex, 0.02 + 0.2 * H3[i], 0.26 + 0.2 * H3[i]));
+          if (sz <= 0.02) continue;
+        } else if (exiting) {
+          const sb = SUB[GJ[i]], jx = (H1[i] - 0.5) * 2.6 * S, jy = (H2[i] - 0.5) * 2.6 * S;
+          if (adv < GD[i]) {
+            // still on its loop: it runs along the outline towards the cut
+            const f = ((((KI[i] - sb.s + (GDIR[i] * adv) / sb.ds) % sb.M) + sb.M) % sb.M), i0 = Math.floor(f), fr = f - i0;
+            const p = pts[sb.s + i0], q = pts[sb.s + ((i0 + 1) % sb.M)];
+            const rx = (x - P3[i * 2]) * keep, ry = (y - P3[i * 2 + 1]) * keep;   // what is left of its breathing
+            x = lerp(p[0], q[0], fr) + jx * jit + rx; y = lerp(p[1], q[1], fr) + jy * jit + ry;
+          } else if (adv < GD[i] + sb.f) {
+            const u = (adv - GD[i]) / sb.f, j2 = jit * (1 - 0.8 * u);
+            x = lerp(sb.ex, sb.tx, u) + jx * j2; y = lerp(sb.ey, sb.ty, u) + jy * j2;
+          } else {
+            const wd = adv - GD[i] - sb.f;
+            if (wd >= WIND) continue;
+            const ang = sb.beta + wd / SPIN_R;
+            x = HX + Math.cos(ang) * SPIN_R; y = HY + Math.sin(ang) * SPIN_R; sz *= 1 - wd / WIND;
+          }
+        }
+        (on ? lit : dim).rect(x - sz / 2, y - sz / 2, sz, sz);
+      }
+      ctx.fillStyle = col(lerp(0.6, 0.2, C));
+      ctx.fill(dim);
+      ctx.fillStyle = col(lerp(0.6, 0.95, C));
+      ctx.fill(lit);
+
+      // the spool: the track comes up as the thread winds on, and the lit ring gathers into the progress arc
+      if (exiting) {
+        arc(HX, HY, SPIN_R, 0, TAU, RING_ALPHA * smooth(seg(ex, 0.22, 0.7)), 2);
+        // (it is lit under the last of the thread, so the ring never goes dark between the two)
+        const up = smooth(seg(ex, 0.48, 0.72));
+        if (up > 0) arc(HX, HY, SPIN_R, spinnerAngle(t), lerp(TAU, spinnerSweep(), inOutCubic(seg(ex, 0.66, 0.88))), up, 2);
+      }
+    },
+  };
+})();
+
+// ===== scene: BATHY — a living depth chart; the whale rises as an island of contours ============
+// A drop falls in the middle of an empty chart: rings spread from it, the isolines of one round seamount, and as its
+// front passes it uncovers the frame, the ticks and the compass. The rings relax into a slowly drifting sea floor
+// (marching squares); then the whale's blurred silhouette is added to the field, so the contours crowd along its
+// outline, and a pen inks the shore. A survey cursor wanders over the chart reading depths. On exit the film runs
+// backwards: the chart relaxes into the rings of a round seamount under the spinner, which sinks; ring after ring
+// closes on the centre, and the last isoline is the spinner track, lighting up and gathering into the progress arc.
+SCENES.bathy = (() => {
+  const NL = 18, LV = Array.from({ length: NL }, (_, l) => 0.05 + l * 0.062);
+  const A0 = 1.15, A1 = 0.1;                    // seamount height: all levels inside it … only the lowest
+  const KR = Math.sqrt(Math.log(A1 / LV[0]));   // the last ring's radius, in seamount widths
+  let cs = 0, nx = 0, ny = 0, x0 = 0, y0 = 0, hw = 0, hh = 0, RX = 0, RY = 0, RR = 0, W0 = 0;
+  let whale = null, BR = null, SH = null, F = null, depthNow = 0, curU = 0, curV = 0;
+  const px = [0, 0, 0, 0], py = [0, 0, 0, 0];
+  const SND = Array.from({ length: 18 }, (_, i) => [0.06 + 0.88 * hash(i * 2 + 5.3), 0.08 + 0.84 * hash(i * 2 + 6.1), 300 + Math.round(hash(i + 40.5) * 330) * 10]);
+
+  function level(L) {
+    for (let j = 0; j < ny - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const k = j * nx + i, a = F[k], b = F[k + 1], c = F[k + nx + 1], d = F[k + nx];
+        const A = a > L, B = b > L, C = c > L, D = d > L;
+        if (A === B && B === C && C === D) continue;
+        const X = x0 + i * cs, Y = y0 + j * cs;
+        let n = 0;
+        if (A !== B) { px[n] = X + (cs * (L - a)) / (b - a); py[n++] = Y; }
+        if (B !== C) { px[n] = X + cs; py[n++] = Y + (cs * (L - b)) / (c - b); }
+        if (C !== D) { px[n] = X + (cs * (L - d)) / (c - d); py[n++] = Y + cs; }
+        if (D !== A) { px[n] = X; py[n++] = Y + (cs * (L - a)) / (d - a); }
+        ctx.moveTo(px[0], py[0]); ctx.lineTo(px[1], py[1]);
+        if (n === 4) { ctx.moveTo(px[2], py[2]); ctx.lineTo(px[3], py[3]); }
+      }
+    }
+  }
+
+  return {
+    label: 'BATHY',
+    readyAt: 3.5,
+    titleAt: 2.05,
+    exitDur: 1.2,
+    spinnerIn: 0.88,   // the last isoline gathers into the spinner's arc
+    layout() {
+      cs = 7 * S; hw = 301 * S; hh = 224 * S; W0 = 118 * S;
+      nx = Math.round((2 * hw) / cs) + 1; ny = Math.round((2 * hh) / cs) + 1;
+      x0 = CX - hw; y0 = CY - hh;
+      RR = 27 * S; RX = CX - hw + 46 * S; RY = CY + hh - 46 * S;
+      whale = makeWhale(CX + 8 * S, CY - 4 * S, 228 * S);
+      const mb = whaleMask(whale, 24 * S), ms = whaleMask(whale, 5 * S);
+      BR = new Float32Array(nx * ny); SH = new Float32Array(nx * ny); F = new Float32Array(nx * ny);
+      for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+        BR[j * nx + i] = mb(x0 + i * cs, y0 + j * cs);
+        SH[j * nx + i] = ms(x0 + i * cs, y0 + j * cs);
+      }
+    },
+    readout: () => `38°${pad(Math.floor(12 + 48 * (1 - curV)), 2)}′N 121°${pad(Math.floor(72 * curU), 2)}′E\nDEPTH ${pad(Math.round(depthNow / 10) * 10, 4)} M`,
+    frame(t, ex, ek) {
+      const Lx = x0, Rx = x0 + 2 * hw, Ty = y0, By = y0 + 2 * hh;
+      const labels = 1 - smooth(seg(ex, 0, 0.15));
+
+      // ---- the round seamount: its share of the field (mix), height, width and centre; and how much of the picture
+      // is drawn as exact circles instead of marched contours (circ). Both hand-overs happen while the field is the
+      // seamount alone, so the two drawings coincide.
+      let mix = 0, mA = A0, mw = W0, mx = CX, my = CY, circ = 0;
+      if (exiting) {
+        // it sinks and narrows under the spinner; the lowest level's ring ends on the track
+        const pe = inOutSine(seg(ex, 0.26, 0.76)), c = smooth(seg(ex, 0.26, 0.62));
+        mA = Math.exp(lerp(Math.log(A0), Math.log(A1), pe));
+        mw = Math.exp(lerp(Math.log(W0), Math.log(SPIN_R / KR), pe));
+        mx = lerp(CX, HX, c); my = lerp(CY, HY, c);
+        mix = inOutCubic(seg(ex, 0.02, 0.36)); circ = smooth(seg(ex, 0.32, 0.38));
+      } else if (t < 1.5) {
+        // the drop: it rises and widens from nothing, its rings born one after another at the centre
+        const po = outCubic(seg(t, 0.1, 0.9));
+        mA = Math.exp(lerp(Math.log(0.045), Math.log(A0), po));
+        mw = Math.exp(lerp(Math.log(9 * S), Math.log(W0), po));
+        mix = 1 - inOutCubic(seg(t, 0.74, 1.45)); circ = 1 - smooth(seg(t, 0.68, 0.78));
+      }
+      // how far the drop's front has run: it uncovers the frame and its furniture, and takes them back on exit
+      const rho = 400 * S * (exiting ? 1 - inOutCubic(seg(ex, 0, 0.36)) : outCubic(seg(t, 0.12, 1.0)));
+      const seen = (x, y) => smooth(clamp01((rho - Math.hypot(x - CX, y - CY)) / (24 * S)));
+
+      // ---- field
+      const rise = inOutCubic(seg(t, 1.1, 2.4)) * (1 + 0.03 * Math.sin(t * 1.1)) * (1 + 0.07 * Math.sin(Math.PI * seg(ex, 0, 0.2)));
+      const march = circ < 1;
+      if (march) {
+        const q = 1 / S, iw2 = 1 / (mw * mw);
+        for (let j = 0; j < ny; j++) {
+          const y = j * cs * q, dy = y0 + j * cs - my;
+          for (let i = 0; i < nx; i++) {
+            const x = i * cs * q, k = j * nx + i;
+            const T = 0.5 + 0.28 * Math.sin(x * 0.011 + 0.2 * t) * Math.cos(y * 0.013 - 0.17 * t)
+              + 0.16 * Math.sin(x * 0.021 + y * 0.017 + 1.3 + 0.13 * t) + 0.08 * Math.sin(x * 0.04 - y * 0.05 - 0.3 * t);
+            let f = T * 0.42 * (1 - 0.8 * rise * SH[k]) + rise * (0.5 * BR[k] + 0.28 * SH[k]);
+            if (mix > 0) { const dx = x0 + i * cs - mx; f = lerp(f, mA * Math.exp(-(dx * dx + dy * dy) * iw2), mix); }
+            F[k] = f;
+          }
+        }
+      }
+      // survey cursor: a slow Lissajous walk over the chart
+      curU = 0.5 + 0.4 * Math.sin(0.23 * t + 1.0); curV = 0.5 + 0.38 * Math.sin(0.31 * t + 0.4);
+      const ux = curU * (nx - 1), uy = curV * (ny - 1);
+      if (!exiting) {
+        const i = Math.min(nx - 2, Math.floor(ux)), j = Math.min(ny - 2, Math.floor(uy)), fx = ux - i, fy = uy - j, k = j * nx + i;
+        depthNow = 4200 * (1 - lerp(lerp(F[k], F[k + 1], fx), lerp(F[k + nx], F[k + nx + 1], fx), fy));
+      }
+
+      // ---- frame: each edge shows as far as the front has passed it
+      for (const [h1, h2, a] of [[hw, hh, 0.32], [hw + 7 * S, hh + 7 * S, 0.12]]) {
+        const ex1 = Math.min(h1, Math.sqrt(Math.max(0, rho * rho - h2 * h2))), ey1 = Math.min(h2, Math.sqrt(Math.max(0, rho * rho - h1 * h1)));
+        if (ex1 > 0) { line(CX - ex1, CY - h2, CX + ex1, CY - h2, a); line(CX - ex1, CY + h2, CX + ex1, CY + h2, a); }
+        if (ey1 > 0) { line(CX - h1, CY - ey1, CX - h1, CY + ey1, a); line(CX + h1, CY - ey1, CX + h1, CY + ey1, a); }
+      }
+      // graticule, ticks, labels, soundings
+      for (let i = 1; i < 6; i++) {
+        const x = Lx + (2 * hw * i) / 6, v = seen(x, By);
+        line(x, Ty, x, By, 0.05 * v);
+        line(x, By, x, By + 7 * S * v, 0.4 * v);
+        text(i < 5 ? `121°${pad(i * 12, 2)}′E` : '122°00′E', x, By + 18 * S, 0.3 * v * labels, 9, 'center');
+      }
+      for (let i = 1; i < 4; i++) {
+        const y = Ty + (2 * hh * i) / 4, v = seen(Lx, y);
+        line(Lx, y, Rx, y, 0.05 * v);
+        line(Lx, y, Lx - 7 * S * v, y, 0.4 * v);
+        text(`38°${pad(60 - i * 12, 2)}′N`, Lx - 14 * S, y, 0.3 * v * labels, 9, 'right');
+      }
+      for (let i = 0; i < SND.length; i++) {
+        const gi = Math.floor(SND[i][0] * (nx - 1)), gj = Math.floor(SND[i][1] * (ny - 1));
+        const sx = x0 + gi * cs, sy = y0 + gj * cs;
+        if (BR[gj * nx + gi] > 0.12 || (Math.abs(sx - RX) < RR + 22 * S && Math.abs(sy - RY) < RR + 16 * S)) continue;
+        text(String(SND[i][2]), sx, sy, 0.3 * seg(t, 1.2 + i * 0.03, 1.7 + i * 0.03) * labels, 8.5, 'center');
+      }
+
+      // ---- isolines, deepest first
+      if (march) {
+        ctx.lineJoin = 'round';
+        for (let l = 0; l < NL; l++) {
+          const a = (l % 4 === 0 ? 0.5 : 0.2) * (1 - circ);
+          if (a <= 0.003) continue;
+          ctx.strokeStyle = col(a);
+          ctx.lineWidth = l % 4 === 0 ? 1.1 : 0.8;
+          ctx.beginPath();
+          level(LV[l]);
+          ctx.stroke();
+        }
+        ctx.lineJoin = 'miter';
+      }
+      // the same isolines as exact circles, while the seamount is all there is
+      if (circ > 0) {
+        const land = smooth(seg(ex, 0.55, 0.78));
+        for (let l = NL - 1; l >= 0; l--) {
+          if (mA <= LV[l]) continue;
+          const r = mw * Math.sqrt(Math.log(mA / LV[l]));
+          if (l === 0 && exiting) arc(mx, my, r, 0, TAU, lerp(0.5, RING_ALPHA, land) * circ, lerp(1.1, 2, land));
+          else arc(mx, my, r, 0, TAU, (l % 4 === 0 ? 0.5 : 0.2) * circ * smooth(seg(r, 0.4, 3)), l % 4 === 0 ? 1.1 : 0.8);
+        }
+      }
+      // the drop itself, and its front running out to the frame
+      if (!exiting && t < 1.1) {
+        dot(CX, CY, 1.6, smooth(seg(t, 0.06, 0.12)) * (1 - smooth(seg(t, 0.2, 0.5))));
+        ctx.save(); ctx.beginPath(); ctx.rect(Lx, Ty, 2 * hw, 2 * hh); ctx.clip();
+        arc(CX, CY, rho, 0, TAU, 0.34 * (1 - seg(rho, 60 * S, 385 * S)) * smooth(seg(t, 0.12, 0.2)));
+        ctx.restore();
+      }
+
+      // ---- survey cursor: two hairlines slide in from the frame and a ring locks on where they cross
+      {
+        const cx = x0 + ux * cs, cy = y0 + uy * cs, g = 9 * S;
+        const e = inOutCubic(seg(t, 1.5, 2.1)), lock = outCubic(seg(t, 1.95, 2.4));
+        const off = 1 - smooth(seg(ex, 0, 0.22));
+        const hx = lerp(Lx, cx, e), hy = lerp(Ty, cy, e), la = 0.1 * smooth(seg(t, 1.5, 1.7)) * off;
+        line(Lx, hy, hx - g * lock, hy, la); line(hx + g * lock, hy, Rx, hy, la);
+        line(hx, Ty, hx, hy - g * lock, la); line(hx, hy + g * lock, hx, By, la);
+        line(hx, By, hx, By + 7 * S, 8 * la, 1.2); line(Lx, hy, Lx - 7 * S, hy, 8 * la, 1.2);
+        if (lock > 0) {
+          const ph = fract(t * 0.7);
+          arc(cx, cy, 5 * S * (1 + 3 * (1 - lock)), 0, TAU, 0.75 * lock * off);
+          arc(cx, cy, (5 + 9 * ph) * S, 0, TAU, 0.4 * lock * off * (1 - ph) * smooth(seg(ph, 0, 0.15)));
+          dot(cx, cy, 1.2, 0.9 * lock * off);
+          text(`${Math.round(depthNow / 10) * 10} M`, cx + 11 * S, cy - 11 * S, 0.55 * lock * off * labels, 9);
+        }
+      }
+
+      // ---- shoreline: inked by a pen, then a survey light keeps running round it; on exit it melts into the rings
+      {
+        const wk = 1 - smooth(seg(ex, 0.02, 0.24));
+        drawWhale(whale, { progress: inOutSine(seg(t, 1.8, 2.7)), a: 0.85 * wk, w: 1.3, hiAt: (t * 0.14) % 1, hiA: 0.9 * wk * smooth(seg(t, 2.7, 3.1)) });
+      }
+
+      // ---- compass rose: uncovered by the front; its needle swings in and settles, and spins away on exit
+      {
+        const k = smooth(clamp01((rho - Math.hypot(RX - CX, RY - CY)) / (60 * S)));
+        if (k > 0.003) {
+          const r = RR * k;
+          ctx.globalAlpha = k; ctx.fillStyle = BG;
+          ctx.beginPath(); ctx.arc(RX, RY, r + 6 * S * k, 0, TAU); ctx.fill();
+          ctx.globalAlpha = 1;
+          arc(RX, RY, r, 0, TAU, 0.45 * k);
+          arc(RX, RY, r * 0.8, 0, TAU, 0.14 * k);
+          for (let i = 0; i < 36; i++) {
+            const a = (TAU * i) / 36, c = Math.cos(a), s = Math.sin(a), r1 = r * (i % 9 === 0 ? 0.8 : 0.9);
+            line(RX + c * r1, RY + s * r1, RX + c * r * 0.98, RY + s * r * 0.98, 0.32 * k);
+          }
+          for (let i = 0; i < 8; i++) {
+            const a = (TAU * i) / 8, c = Math.cos(a), s = Math.sin(a), r1 = r * (i % 2 ? 0.42 : 0.72);
+            line(RX + c * r * 0.12, RY + s * r * 0.12, RX + c * r1, RY + s * r1, 0.3 * k);
+          }
+          const na = -Math.PI / 2 + 0.14 * Math.sin(t * 0.9) + 0.05 * Math.sin(t * 2.3 + 1) + 7 * Math.pow(1 - seg(t, 0.7, 2.0), 3) - 9 * Math.pow(seg(ex, 0, 0.4), 2);
+          line(RX - Math.cos(na) * r * 0.5, RY - Math.sin(na) * r * 0.5, RX + Math.cos(na) * r * 0.74, RY + Math.sin(na) * r * 0.74, 0.85 * k, 1.2);
+          dot(RX, RY, 1.6 * k, 0.9 * k);
+          text('N', RX, RY - r - 9 * S, 0.42 * k * labels, 9, 'center');
+        }
+      }
+
+      // ---- the last isoline lights up and gathers into the progress arc
+      {
+        const k = seg(ex, 0.7, 0.88);
+        if (k > 0) arc(HX, HY, SPIN_R, spinnerAngle(t), lerp(TAU, spinnerSweep(), inOutCubic(k)), smooth(k), 2);
+      }
+    },
+  };
+})();
+
 // ===== boot: pick a scene, run the frame loop, own the exit protocol ===========================
 const SCENE_NAMES = Object.keys(SCENES);
 const forced = params.get('scene');

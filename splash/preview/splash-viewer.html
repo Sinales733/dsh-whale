@@ -31,7 +31,7 @@
   // app's "ready" is simulated: like the main process, the exit is asked for no earlier than 3 s after launch,
   // and the scene itself holds it until its whale has been on screen long enough. No boot-card measurements are
   // passed, so the splash finishes on its own replica of the boot card.
-  const SCENES = [['construct', 'CONSTRUCT 结构'], ['orbit', 'ORBIT 星球'], ['signal', 'SIGNAL 示波器'], ['weave', 'WEAVE 编织'], ['pulsar', 'PULSAR 脉冲星'], ['current', 'CURRENT 水流'], ['spline', 'SPLINE 放样'], ['hanzi', 'HANZI 汉字'], ['shadow', 'SHADOW 投影'], ['echo', 'ECHO 声呐']];
+  const SCENES = [['construct', 'CONSTRUCT 结构'], ['orbit', 'ORBIT 星球'], ['signal', 'SIGNAL 示波器'], ['weave', 'WEAVE 编织'], ['pulsar', 'PULSAR 脉冲星'], ['current', 'CURRENT 水流'], ['spline', 'SPLINE 放样'], ['hanzi', 'HANZI 汉字'], ['shadow', 'SHADOW 投影'], ['echo', 'ECHO 声呐'], ['chladni', 'CHLADNI 沙纹'], ['bathy', 'BATHY 海图']];
   const q = new URLSearchParams(location.search);
   let scene = q.get('scene') || 'construct', speed = 1, readyAt = 3, theme = q.get('theme') || 'dark';
   const ifr = document.getElementById('ifr'), frameEl = document.getElementById('frame');
