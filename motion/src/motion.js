@@ -419,7 +419,9 @@ function createWhale(only, perTurn = false, order = null) {
   let queue = [], clip = null, clipStart = 0, overlays = [];
   let prevName = null, nextName = null;
   function enqueueLoop() {
-    let cur = nextName || pick();
+    // a whale that appears while the guest is playing (the AI starting, another session shown) starts with the guest,
+    // so it is already moving the way the others are
+    let cur = nextName || (guestWants() ? 'guest' : pick());
     if (cur === 'guest' && !guestWants()) cur = pick();
     nextName = guestWants() ? 'guest' : pick();
     if (cur === 'guest') queue.push(guestClip(globalThis.__dshWhaleGuest));
