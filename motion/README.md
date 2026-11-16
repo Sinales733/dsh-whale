@@ -36,6 +36,9 @@ dsh plugin --profile desktop add link:/path/to/dsh-whale/motion
 |---|---|
 | `whale: "<name>"` | 固定只播某一个鲸尾动画（名称见上表） |
 | `whaleMode: "turn"` | 每次出现只随机选一个，整轮对话不切换 |
+| `autoSplash: false` | 不在 DSH 更新后自动装回[启动动画](../splash)（见下） |
+
+**启动动画自动装回**（仅 Windows 桌面版）：DSH 更新会覆盖启动动画。装了本插件后，DSH 每次启动约 15 秒后会在后台检查一次：你装过启动动画、而它现在不在了或比插件自带的旧，就按当前 DSH 版本做好补丁，等你退出 DSH 后换上。所以更新后第一次启动没有动画，第二次起就有。没装过启动动画的人不受影响；用 [`splash/restore-splash.ps1`](../splash/restore-splash.ps1) 还原后也不再自动装回。新版本对不上补丁位置时什么都不改。整个关掉：`autoSplash: false`，或环境变量 `DSH_SPLASH_AUTO=0`。
 
 ## 开发 / Development
 

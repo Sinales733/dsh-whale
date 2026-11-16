@@ -2,7 +2,23 @@
 
 DeepSeek Harness（DSH）的启动动画。每次启动 DSH 时随机播放 12 个线稿场景中的一个；应用就绪后，画面收拢成网页版自己的加载圈，无缝交接给启动卡片。
 
-它不是 DSH 插件：启动画面要在插件系统加载之前出现，所以是以补丁形式写进 DSH 的程序包 `resources/app.asar`。DSH 更新会覆盖它，届时需要重新安装。
+它不是 DSH 插件：启动画面要在插件系统加载之前出现，所以是以补丁形式写进 DSH 的程序包 `resources/app.asar`。安装脚本按你电脑上装的 DSH 版本现场打补丁，不带预先打好的程序包，所以不会把 DSH 换成别的版本。DSH 更新会覆盖它：装了 [motion 插件](../motion) 会自动装回，否则再运行一次安装脚本。
+
+## 安装（Windows）
+
+1. 退出 DSH（托盘图标也要退出；脚本会等它关掉）。
+2. 在本文件夹里右键 `install-splash.ps1` →「使用 PowerShell 运行」，或者：
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File install-splash.ps1 -Relaunch
+   ```
+
+- 用的是 DSH 自带的运行环境，不用另装 Node。
+- 自动找到 DSH 的安装位置；找不到时加 `-InstallDir <文件夹>`。
+- 原版程序包留在旁边，名为 `app.asar.orig`。
+- 新版 DSH 改了代码、补丁位置对不上时，脚本什么都不改，提示“暂不支持”。
+- 还原：`restore-splash.ps1`。只会还原成当前这个版本的原版，不会把 DSH 退回旧版；还原后 motion 插件也不再自动装回。
+- 查看状态：`install-splash.ps1 -Command status`。
 
 ## 场景
 
@@ -30,9 +46,9 @@ DeepSeek Harness（DSH）的启动动画。每次启动 DSH 时随机播放 12 �
 - `main-splash.js.txt`：主进程里显示启动窗口、测量启动卡片并交接的那段代码。
 - `tools/build-splash.mjs`：构建；`tools/lab-shot.mjs`：虚拟时钟下的逐帧截图与跳帧检测；`tools/asar-*.mjs`：打包进 `app.asar`。
 - `preview/splash-viewer.html`：实时播放；`preview/lab.html` + `lab-clock.js`：逐帧实验台。
-- `install-splash.ps1` / `restore-splash.ps1`：安装到本机 DSH / 还原原版。
+- `patch-app.mjs`：给已安装的 DSH 打补丁、还原、查看状态；`install-splash.ps1` / `restore-splash.ps1` 是它的双击入口。
 
-脚本按开发机的目录结构写成（`splash/`、`tools/`、`preview/`、`asar-src/` 并列于同一根目录）。`asar-src/` 是从 DSH 解包出的程序文件，不在本仓库中。
+构建和实验台脚本按开发机的目录结构写成（`splash/`、`tools/`、`preview/`、`asar-src/` 并列于同一根目录）。`asar-src/` 是从 DSH 解包出的程序文件，不在本仓库中。安装用不到这些。
 
 ## 许可
 

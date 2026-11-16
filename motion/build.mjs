@@ -21,3 +21,13 @@ ${body.split('\n').map((l) => (l ? '\t\t' + l : l)).join('\n')}
 fs.mkdirSync(path.join(root, 'lib'), { recursive: true });
 fs.writeFileSync(path.join(root, 'lib/client.js'), out);
 console.log(`lib/client.js built (${out.length} bytes)`);
+
+// The launch splash, which lib/index.js puts back into DSH after its updates: from dsh-whale's splash/ folder
+// (or DSH_SPLASH_DIR).
+const splashDir = process.env.DSH_SPLASH_DIR ?? path.join(root, '..', 'splash');
+const SPLASH = ['patch-app.mjs', 'main-splash.js.txt', 'splash.html', 'splash.css', 'splash.js'];
+if (SPLASH.every((f) => fs.existsSync(path.join(splashDir, f)))) {
+  fs.mkdirSync(path.join(root, 'lib/splash'), { recursive: true });
+  for (const f of SPLASH) fs.copyFileSync(path.join(splashDir, f), path.join(root, 'lib/splash', f));
+  console.log(`lib/splash/ copied from ${splashDir}`);
+} else console.warn(`no launch splash at ${splashDir}; lib/splash/ left as it is`);
