@@ -1,7 +1,7 @@
 {
   "name": "dsh-motion",
   "description": "Livelier running indicators: a rotating set of whale-tail loops for Deep diving and animated tool-call icons",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icon": "./icon.svg",
   "type": "module",
   "main": "lib/index.js",
