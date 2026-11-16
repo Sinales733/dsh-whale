@@ -23,7 +23,14 @@ const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(pre
 const OFF_NAMES = ['spin', 'sway', 'stroke'];
 const SURF_NAMES = Object.keys(SF_DEFS);                     // fluke, spout
 const POOL = ['original', ...OFF_NAMES, ...SURF_NAMES];
-const ORIG_PERIOD = (ORIG_SEQ.length * ORIG_FRAME_MS) / 1000;
+// The built-in loop as DSH has it rests on frame 0 for 0.4 s before the wag and 0.3 s after it; between our loops
+// that reads as the whale stopping. It plays here from one resting frame straight into the wag, and the wag runs
+// back into whatever comes next (every loop starts on that resting frame).
+const ORIG_PLAY = [ORIG_SEQ[0], ...ORIG_SEQ.filter((f) => f !== ORIG_SEQ[0])];
+const ORIG_PERIOD = (ORIG_PLAY.length * ORIG_FRAME_MS) / 1000;
+// One loop keeps playing, round and round, for about this long before the next is picked (a new one every loop
+// read as the whale forever changing its mind)
+const LOOP_HOLD = 16;
 const OFF_PERIOD = 4.2;                                      // official loops retimed to the surface loops' pace
 // spin starts and ends on frame 39, one of its turning points (see SPIN_STOPS), so one pose serves both ends
 const SPIN_POSE = { yaw: -0.815, pitch: -0.252, rollB: -0.027, rollT: 0.203, twist: -0.169, flexP: -0.072, dihed: 0, curl: 0.013, asym: 0.069, tx: 0.065, ty: -0.75, sx: 1.029, sy: 0.887, ang: -0.009 };
@@ -132,6 +139,8 @@ function frameImages() {
  * @param perTurn - keep one randomly chosen loop for the whole appearance instead of switching each loop
  * @param order - (tests) play these loops in this order, round and round
  */
+globalThis.__dshWhaleRaster = 1;
+
 function createWhale(only, perTurn = false, order = null) {
   const el = document.createElement('span');
   el.className = 'dshm-whale';
@@ -150,7 +159,16 @@ function createWhale(only, perTurn = false, order = null) {
   if (order) { let i = 0; pick = () => order[i++ % order.length]; }
   else if (only) pick = () => only;
   else if (perTurn) { const one = sharedBag(); pick = () => one; }
-  else pick = createBag('original');
+  else {
+    const bag = createBag('original');
+    let held = null, left = 0;
+    const loopLen = (n) => (n === 'original' ? ORIG_PERIOD : isOff(n) ? offPeriod(n) : SF_DEFS[n].period);
+    pick = () => {
+      if (left <= 0) { held = bag(); left = Math.max(1, Math.round(LOOP_HOLD / loopLen(held))); }
+      left--;
+      return held;
+    };
+  }
   let color = '', colorAt = -1;
 
   // ---------------------------------------------------------------- drawing
@@ -205,8 +223,12 @@ function createWhale(only, perTurn = false, order = null) {
     const S = OFFICIAL[n], N = S.seq.length;
     const at = (i) => imgs[n][S.seq[((i % N) + N) % N]];
     if (n === 'spin') {
-      // between two frames, a short cross-fade (only around the half-way mark, so no double image lingers)
-      const f = spinFrameAt(t), i = Math.floor(f), w = sfClamp((f - i - 0.42) / 0.16);
+      // between two frames a cross-fade: a short one around the half-way mark where the turn is quick (so no
+      // double image lingers), widening to the whole step where it slows into a change of direction (there the
+      // neighbouring frames nearly match, and whole frames would stand still for a quarter of a second)
+      const f = spinFrameAt(t), i = Math.floor(f), speed = Math.abs(spinFrameAt(t + 0.02) - f) / 0.02;
+      const span = sfLerp(1, 0.16, sfSmooth(sfSeg(speed, 8, 20)));
+      const w = sfClamp((f - i - 0.5 + span / 2) / span);
       drawFrames(at(i), at(i + 1), w * w * (3 - 2 * w), alpha, false, dy, OFF_FIT.spin);
       return;
     }
@@ -286,7 +308,7 @@ function createWhale(only, perTurn = false, order = null) {
     return {
       dur: ORIG_PERIOD,
       kind: 'original',
-      draw(t) { drawFrames(imgs.original[ORIG_SEQ[Math.min(ORIG_SEQ.length - 1, Math.floor((t * 1000) / ORIG_FRAME_MS))]], null, 0, 1, false); },
+      draw(t) { drawFrames(imgs.original[ORIG_PLAY[Math.min(ORIG_PLAY.length - 1, Math.floor((t * 1000) / ORIG_FRAME_MS))]], null, 0, 1, false); },
     };
   }
   /** official loop n from phase p0 for dur seconds. fadeIn / fadeOut: blend from / into the rig's fitted pose;
@@ -354,13 +376,54 @@ function createWhale(only, perTurn = false, order = null) {
     return out;
   }
 
+  // ---------------------------------------------------------------- guest: another plugin's tail motion
+  // A plugin can borrow the tail (dsh-music: moving it to the beat of the music) by publishing
+  // globalThis.__dshWhaleGuest = { wants(): boolean, frame(dt): frame | null }, frames built on the same rig
+  // (sfEmptyFrame / sfProject / sfPath). It takes over at a loop boundary, where every loop is at the resting pose,
+  // and hands back once frame() returns null (it is back at rest): fading from and to the built-in frame like the
+  // surface loops do, so the change is as seamless as between our own loops.
+  // A frame may also carry .raster = { a, b, w, alpha, fit } (28 px alpha masks, cross-faded a -> b by w, placed with
+  // fit as OFF_FIT does) to play official-style frames, and .tailAlpha for the rig outline drawn over them;
+  // globalThis.__dshWhaleRaster tells the guest this version draws them.
+  const guestWants = () => { try { return !!globalThis.__dshWhaleGuest?.wants(); } catch { return false; } };
+  function guestClip(g) {
+    let last = -1, end = Infinity;
+    const restPath = sfPath(sfProject(sfRestPose()));
+    const rest = () => Object.assign(sfEmptyFrame(), { tail: restPath });   // drawSurf takes a frame apart: a new one each time
+    return {
+      kind: 'guest',
+      get dur() { return end; },
+      draw(t) {
+        const dt = last < 0 ? 0 : Math.max(0, t - last);
+        last = t;
+        if (end === Infinity) {
+          let fr = null;
+          try { fr = g.frame(dt); } catch { fr = null; }
+          if (fr) {
+            const k = sfClamp((t - 0.03) / 0.2), r = fr.raster;
+            if (k < 1) drawRest(1 - k);
+            if (r) drawFrames(r.a, r.b, r.w, k * r.alpha, true, 0, r.fit);
+            drawSurf(fr, k * (fr.tailAlpha ?? 1));
+            return;
+          }
+          end = t + 0.12;      // the guest is back at rest: a short cross-fade to the built-in frame, no hold
+        }
+        const k = sfClamp((end - t - 0.02) / 0.1);
+        drawRest(1 - k);
+        if (k > 0) drawSurf(rest(), k);
+      },
+    };
+  }
+
   // ---------------------------------------------------------------- player
   let queue = [], clip = null, clipStart = 0, overlays = [];
   let prevName = null, nextName = null;
   function enqueueLoop() {
-    const cur = nextName || pick();
-    nextName = pick();
-    queue.push(...buildLoop(prevName, cur, nextName));
+    let cur = nextName || pick();
+    if (cur === 'guest' && !guestWants()) cur = pick();
+    nextName = guestWants() ? 'guest' : pick();
+    if (cur === 'guest') queue.push(guestClip(globalThis.__dshWhaleGuest));
+    else queue.push(...buildLoop(prevName, cur, nextName));   // a guest neighbour counts as the resting pose
     prevName = cur;
   }
 
@@ -396,12 +459,12 @@ const CSS = `
 .dshm-whale{position:absolute;inset:0;pointer-events:none}
 .dshm-cv{position:absolute;left:-35.7143%;top:-35.7143%;width:171.4286%;height:171.4286%}
 .dshm-lead{position:relative}
-.dshm-lead.dshm-active>:not(.dshm-tool){opacity:0}
+.dshm-lead.dshm-active>:not(.dshm-tool):not(.dshm-ring){opacity:0}
 .dshm-tool{position:absolute;overflow:visible;pointer-events:none;color:inherit}
 [data-disclosure-row]:hover .dshm-lead.dshm-active>:not(.dshm-tool),
 [data-disclosure-row][aria-expanded="true"] .dshm-lead.dshm-active>:not(.dshm-tool){opacity:1}
 [data-disclosure-row]:hover .dshm-tool,[data-disclosure-row][aria-expanded="true"] .dshm-tool{opacity:0}
-.dshm-ring{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;overflow:visible;pointer-events:none}
+.dshm-lead>svg.dshm-ring{position:absolute;inset:0;width:100%!important;height:100%!important;margin:0;overflow:visible;pointer-events:none}
 .dshm-ring circle{fill:none;stroke:currentColor;stroke-width:1;stroke-linecap:round}
 .dshm-fail .dshm-ring{color:var(--dsw-alias-state-error-primary,#e5484d)}
 `;
@@ -426,13 +489,36 @@ function createMotion(options = {}) {
     return row.querySelector('[data-disclosure-row] [class*="leading"]');
   }
 
+  // The tool's icon in the leading box: on a row that can expand, DSH wraps it in a span and puts the hover chevron
+  // beside it (DisclosureRow previewChevron), so not simply the first <svg> child
+  function iconOf(lead) {
+    return [...lead.querySelectorAll('svg')].find((c) => !c.closest('.dshm-tool, .dshm-ring')
+      && !/chevron/i.test(`${c.getAttribute('class') ?? ''} ${c.getAttribute('data-icon') ?? ''}`));
+  }
+
+  // DSH draws its icons as <svg><use href="#dsw-icon-…"></svg> from a sprite (ui-theme icon-sprite.ts): the clone
+  // gets the symbol's own shapes in place of the <use>, with its viewBox and stroke, so they can move one by one
+  function inlineSymbols(svg) {
+    for (const use of [...svg.querySelectorAll('use')]) {
+      const id = (use.getAttribute('href') ?? use.getAttribute('xlink:href') ?? '').replace(/^#/, '');
+      const symbol = id && document.getElementById(id);
+      if (!symbol || symbol.tagName.toLowerCase() !== 'symbol') continue;
+      const g = document.createElementNS(NS, 'g');
+      for (const { name, value } of symbol.attributes) if (name !== 'id' && name !== 'viewBox') g.setAttribute(name, value);
+      g.append(...[...symbol.childNodes].map((n) => n.cloneNode(true)));
+      if (!svg.hasAttribute('viewBox') && symbol.hasAttribute('viewBox')) svg.setAttribute('viewBox', symbol.getAttribute('viewBox'));
+      use.replaceWith(g);
+    }
+  }
+
   // the host's own icon, cloned and laid exactly over it; its parts move (tool-art.js)
   function startTool(row) {
     const lead = leadOf(row);
     if (!lead) return;
-    const icon = [...lead.children].find((c) => c.tagName.toLowerCase() === 'svg' && !c.classList.contains('dshm-tool'));
+    const icon = iconOf(lead);
     if (!icon) return;
     const svg = icon.cloneNode(true);
+    inlineSymbols(svg);
     svg.setAttribute('class', 'dshm-tool');
     svg.setAttribute('aria-hidden', 'true');
     const rl = lead.getBoundingClientRect(), ri = icon.getBoundingClientRect();
@@ -465,9 +551,10 @@ function createMotion(options = {}) {
     lead.classList.toggle('dshm-fail', outcome !== 'ok');
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('class', 'dshm-ring');
-    svg.setAttribute('viewBox', '0 0 22 22');
+    // fills the 16 px leading box: the row clips anything that sticks out of it on the left
+    svg.setAttribute('viewBox', '0 0 16 16');
     svg.setAttribute('aria-hidden', 'true');
-    svg.innerHTML = '<circle cx="11" cy="11" r="10" pathLength="1"/>';
+    svg.innerHTML = '<circle cx="8" cy="8" r="7.5" pathLength="1"/>';
     lead.appendChild(svg);
     rings.add({ lead, svg, circle: svg.firstChild, t0: performance.now(), ok: outcome === 'ok' });
     if (!raf) raf = requestAnimationFrame(frame);
@@ -480,13 +567,13 @@ function createMotion(options = {}) {
     if (r.ok) {
       const k = sfSeg(t, 0.08, 0.58), draw = 1 - Math.pow(1 - k, 3);
       r.circle.setAttribute('stroke-dasharray', `${draw} 1`);
-      r.circle.setAttribute('transform', 'rotate(-90 11 11)');
+      r.circle.setAttribute('transform', 'rotate(-90 8 8)');
       r.circle.setAttribute('stroke-opacity', String(sfSmooth(sfSeg(t, 0.08, 0.2))));
       r.svg.style.opacity = String(1 - sfSmooth(sfSeg(t, 0.6, 0.92)));
     } else {
       const k = sfSeg(t, 0, 0.6), e = 1 - Math.pow(1 - k, 2);
       r.circle.setAttribute('stroke-dasharray', '0.064 0.048');
-      r.circle.setAttribute('transform', `rotate(${40 * e} 11 11) translate(11 11) scale(${0.7 + 0.55 * e}) translate(-11 -11)`);
+      r.circle.setAttribute('transform', `rotate(${40 * e} 8 8) translate(8 8) scale(${0.62 + 0.4 * e}) translate(-8 -8)`);
       r.svg.style.opacity = String(1 - e);
       const sk = sfSeg(t, 0, 0.42);
       r.lead.style.transform = sk < 1 ? `translateX(${(2 * Math.sin(sk * Math.PI * 4) * (1 - sk)).toFixed(2)}px)` : '';

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>工具行复刻</title>
+<!-- DSH 0.2.2 tool rows as the installed build renders them: ui-primitives DisclosureRow + ui-tool ToolRow, their
+     CSS modules loaded from the source tree with the class names prefixed (the build hashes them apart), and the
+     icons as <svg><use href="#dsw-icon-…"></svg> from a sprite, as ui-theme's icon-sprite.ts makes it. dsh-motion's
+     built client runs on top, to check its tool-icon motion and finish rings on the real structure. -->
+<link rel="stylesheet" href="/ref-oss/deepseek-harness/packages/client/ui-theme/src/styles/base.css">
+<link rel="stylesheet" href="/ref-oss/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css">
+<style>
+body { margin: 0; padding: 20px 24px; background: var(--dsw-alias-bg-base, #fff); color: var(--dsw-alias-label-primary); font: 14px/1.5 var(--dsw-font-family); }
+.rows { width: 520px; }
+.ctl { display: flex; gap: 8px; margin-bottom: 14px; font-size: 12px; flex-wrap: wrap; }
+.ctl button { font: inherit; padding: 3px 10px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l3); background: transparent; color: inherit; cursor: pointer; }
+.note { font-size: 12px; color: var(--dsw-alias-label-tertiary); margin: 12px 0 2px; }
+</style>
+</head>
+<body>
+<div class="ctl">
+  <button id="run">开始（运行中）</button><button id="ok">结束：成功</button><button id="err">结束：出错</button>
+</div>
+<div class="rows" id="rows"></div>
+<script src="dsh-icons.js"></script>
+<script>
+// the sprite, the way ui-theme builds it: one <symbol> per glyph, the artwork's attributes minus its size
+const sprite = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+sprite.setAttribute('data-dsh-icon-sprite', ''); sprite.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+const ids = {};
+for (const [variant, markup] of Object.entries({ ...DSH_ICONS, chevron: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke-width="1"><path d="M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6" stroke="currentColor"></path></svg>' })) {
+  const root = new DOMParser().parseFromString(markup, 'image/svg+xml').documentElement;
+  const symbol = document.createElementNS('http://www.w3.org/2000/svg', 'symbol');
+  for (const { name, value } of root.attributes) if (!['width', 'height', 'xmlns', 'class', 'aria-hidden'].includes(name)) symbol.setAttribute(name, value);
+  symbol.id = ids[variant] = `dsw-icon-${variant}-regular`;
+  symbol.append(...[...root.childNodes].map((n) => document.importNode(n, true)));
+  sprite.append(symbol);
+}
+document.body.prepend(sprite);
+const ICON = (variant, cls = '') => `<svg width="14" height="14"${cls ? ` class="${cls}"` : ''} data-icon="${ids[variant]}" aria-hidden="true"><use href="#${ids[variant]}"></use></svg>`;
+// a row as DisclosureRow renders it: an expandable row wraps the icon and adds the hover chevron (previewChevron)
+function row(variant, title, summary, expandable) {
+  const lead = expandable ? `<span class="D_iconIdle">${ICON(variant)}</span>${ICON('chevron', 'D_chevronHover')}` : ICON(variant);
+  return `<div class="T_root" data-variant="${variant}" data-tool="${variant}" data-state="ok">
+    <div class="D_root"><div class="D_header" data-disclosure-header>
+      <div class="D_row T_row" data-disclosure-row${expandable ? ' data-expandable="true" role="button" tabindex="0" aria-expanded="false"' : ''}>
+        <span class="D_leading T_leading">${lead}</span>
+        <span class="T_title">${title}</span><span class="T_summary">&nbsp;· ${summary}</span>
+      </div>
+    </div></div>
+  </div>`;
+}
+document.getElementById('rows').innerHTML =
+  `<div class="note">可展开的行（图标包在一层里，旁边藏着悬停时的下箭头）</div>` +
+  row('bash', 'Pwsh', "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'", true) + row('search', 'Search', 'whale tail', true) + row('read', 'Read', 'motion.js', true) +
+  `<div class="note">不可展开的行（图标直接放在左边格子里）</div>` +
+  row('bash', 'Pwsh', 'Get-ChildItem', false) + row('edit', 'Edit', 'tail.js', false) + row('others', 'Fragile mind', '', false);
+
+async function cssModule(url, prefix) {
+  const text = await (await fetch(url)).text();
+  const s = document.createElement('style');
+  s.textContent = text.replace(/\.([a-zA-Z][\w-]*)/g, `.${prefix}_$1`);
+  document.head.append(s);
+}
+const setState = (st) => document.querySelectorAll('[data-tool]').forEach((r) => r.setAttribute('data-state', st));
+document.getElementById('run').onclick = () => setState('running');
+document.getElementById('ok').onclick = () => setState('ok');
+document.getElementById('err').onclick = () => setState('error');
+(async () => {
+  await cssModule('/ref-oss/deepseek-harness/packages/client/ui-primitives/src/DisclosureRow.module.css', 'D');
+  await cssModule('/ref-oss/deepseek-harness/packages/client/ui-tool/src/client/tool/components/ToolRow.module.css', 'T');
+  window.__ModuleLoader__ = { load({ factory }) { window.__motion = factory(() => ({})); } };
+  const s = document.createElement('script'); s.src = `../lib/client.js?v=${Date.now()}`;
+  s.onload = () => __motion.apply({ effect() {} });
+  document.head.append(s);
+})();
+</script>
+</body>
+</html>
